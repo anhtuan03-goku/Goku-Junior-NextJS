@@ -19,8 +19,17 @@ async function seedAdmin() {
     );
   }
 
+  const parsedDbUrl = new URL(dbUrl);
+  const sslMode = parsedDbUrl.searchParams.get("sslmode");
+  if (
+    (sslMode === "require" || sslMode === "prefer" || sslMode === "verify-ca") &&
+    !parsedDbUrl.searchParams.has("uselibpqcompat")
+  ) {
+    parsedDbUrl.searchParams.set("sslmode", "verify-full");
+  }
+
   const username = adminUsernameRaw.trim().toLowerCase();
-  const pool = new Pool({ connectionString: dbUrl });
+  const pool = new Pool({ connectionString: parsedDbUrl.toString() });
   const db = drizzle(pool);
 
   try {

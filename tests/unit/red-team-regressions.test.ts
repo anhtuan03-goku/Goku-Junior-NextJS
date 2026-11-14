@@ -4,6 +4,7 @@ import type {
   IImageProvider,
   ISavedImageRepository,
 } from "@/domain/repositories/ports";
+import { normalizePgConnectionString } from "@/infrastructure/config/env";
 import { ImageProviderRegistry } from "@/infrastructure/providers/picsum-provider";
 import type {
   IQuotaPersistenceStore,
@@ -14,6 +15,14 @@ import { UnsplashQuotaWorker } from "@/infrastructure/providers/unsplash-quota-w
 import { verifyCsrfOrigin } from "@/infrastructure/security/request-guards";
 
 describe("Red-Team Remediation Regressions", () => {
+  it("upgrades legacy sslmode=require to sslmode=verify-full to prevent pg-connection-string security warnings", () => {
+    const legacy =
+      "postgresql://user:pass@ep-test.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
+    const normalized = normalizePgConnectionString(legacy);
+    expect(normalized).toContain("sslmode=verify-full");
+    expect(normalized).toContain("channel_binding=require");
+  });
+
   it("normalizes multi-hop x-forwarded-host in verifyCsrfOrigin", () => {
     const validProxiedReq = new Request("https://internal:3000/api/posts", {
       method: "POST",

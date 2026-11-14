@@ -26,6 +26,30 @@ export interface CloudinaryCredentials {
   apiSecret: string;
 }
 
+/**
+ * Upgrades legacy sslmode=require/prefer/verify-ca to explicit sslmode=verify-full
+ * so pg-connection-string enforces full TLS verification without emitting Node warnings
+ * that trigger the Next.js 16 Dev Console Error overlay.
+ */
+export function normalizePgConnectionString(rawUrl: string): string {
+  try {
+    const parsed = new URL(rawUrl);
+    const sslMode = parsed.searchParams.get("sslmode");
+    if (
+      (sslMode === "require" ||
+        sslMode === "prefer" ||
+        sslMode === "verify-ca") &&
+      !parsed.searchParams.has("uselibpqcompat")
+    ) {
+      parsed.searchParams.set("sslmode", "verify-full");
+      return parsed.toString();
+    }
+    return rawUrl;
+  } catch {
+    return rawUrl;
+  }
+}
+
 let cachedEnv: z.infer<typeof envSchema> | null = null;
 let cachedCloudinary: CloudinaryCredentials | null = null;
 
