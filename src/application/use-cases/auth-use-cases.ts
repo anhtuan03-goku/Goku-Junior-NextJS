@@ -35,7 +35,9 @@ export class RegisterUserUseCase {
 
     const existing = await this.userRepo.findByUsername(username);
     if (existing) {
-      throw new ConflictError("Tên đăng nhập này đã tồn tại, vui lòng chọn tên khác.");
+      throw new ConflictError(
+        "This username is already taken. Please choose another one.",
+      );
     }
 
     const passwordHash = await this.passwordHasher.hash(password);
@@ -70,13 +72,13 @@ export class LoginUserUseCase {
   }): Promise<{ user: SafeUserDTO; token: string }> {
     const username = input.username.trim().toLowerCase();
     if (!username || !input.password) {
-      throw new UnauthorizedError("Tên đăng nhập hoặc mật khẩu không chính xác.");
+      throw new UnauthorizedError("Invalid username or password.");
     }
 
     const user = await this.userRepo.findByUsername(username);
     if (!user) {
       await this.passwordHasher.verify(input.password, DUMMY_BCRYPT_HASH);
-      throw new UnauthorizedError("Tên đăng nhập hoặc mật khẩu không chính xác.");
+      throw new UnauthorizedError("Invalid username or password.");
     }
 
     const valid = await this.passwordHasher.verify(
@@ -84,11 +86,13 @@ export class LoginUserUseCase {
       user.passwordHash,
     );
     if (!valid) {
-      throw new UnauthorizedError("Tên đăng nhập hoặc mật khẩu không chính xác.");
+      throw new UnauthorizedError("Invalid username or password.");
     }
 
     if (!user.isActive) {
-      throw new ForbiddenError("Tài khoản của bạn hiện đang bị tạm khóa bởi quản trị viên.");
+      throw new ForbiddenError(
+        "Your account is currently locked by an administrator.",
+      );
     }
 
     const token = await this.tokenService.sign({

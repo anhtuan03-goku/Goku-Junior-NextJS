@@ -19,14 +19,17 @@ import type {
 
 function assertAdmin(actor: Pick<User, "role"> | null | undefined): void {
   if (!actor || actor.role !== "ADMIN") {
-    throw new ForbiddenError("Chức năng này chỉ dành cho Quản trị viên (Admin).");
+    throw new ForbiddenError("This action is restricted to Administrators.");
   }
 }
 
 export class AdminListUsersUseCase {
   constructor(private readonly userRepo: IUserRepository) {}
 
-  async execute(actor: Pick<User, "role">, search?: string): Promise<AdminUserSummary[]> {
+  async execute(
+    actor: Pick<User, "role">,
+    search?: string,
+  ): Promise<AdminUserSummary[]> {
     assertAdmin(actor);
     return this.userRepo.listAdminUserSummaries(search?.trim() || undefined);
   }
@@ -45,11 +48,11 @@ export class AdminManageUserUseCase {
 
     const target = await this.userRepo.findById(input.targetUserId);
     if (!target) {
-      throw new NotFoundError("Không tìm thấy người dùng cần cập nhật.");
+      throw new NotFoundError("Target user not found.");
     }
 
     if (input.actor.id === target.id && input.isActive === false) {
-      throw new ValidationError("Admin không thể tự khóa tài khoản của chính mình.");
+      throw new ValidationError("Administrators cannot lock their own account.");
     }
 
     if (
@@ -59,7 +62,7 @@ export class AdminManageUserUseCase {
       const adminCount = await this.userRepo.countAdmins();
       if (adminCount <= 1) {
         throw new ValidationError(
-          "Không thể hạ quyền hoặc khóa Admin duy nhất của hệ thống.",
+          "Cannot demote or lock the sole Administrator of the platform.",
         );
       }
     }
@@ -84,18 +87,22 @@ export class AdminDeleteUserUseCase {
     assertAdmin(input.actor);
 
     if (input.actor.id === input.targetUserId) {
-      throw new ValidationError("Admin không thể tự xóa tài khoản của chính mình.");
+      throw new ValidationError(
+        "Administrators cannot delete their own account.",
+      );
     }
 
     const target = await this.userRepo.findById(input.targetUserId);
     if (!target) {
-      throw new NotFoundError("Không tìm thấy người dùng.");
+      throw new NotFoundError("User not found.");
     }
 
     if (target.role === "ADMIN") {
       const adminCount = await this.userRepo.countAdmins();
       if (adminCount <= 1) {
-        throw new ValidationError("Không thể xóa Admin duy nhất của hệ thống.");
+        throw new ValidationError(
+          "Cannot delete the sole Administrator of the platform.",
+        );
       }
     }
 

@@ -41,7 +41,7 @@ export class GetPhotographerDetailUseCase {
   }) {
     const cleanUsername = params.username.trim();
     if (!cleanUsername || cleanUsername.length > 64 || !/^[a-zA-Z0-9_.-]+$/.test(cleanUsername)) {
-      throw new ValidationError("Username nhiếp ảnh gia không hợp lệ.");
+      throw new ValidationError("Invalid photographer username.");
     }
 
     return this.orchestrator.getPhotographerDetail({
@@ -74,7 +74,7 @@ export class SaveImageUseCase {
     downloadLocation?: string | null;
   }): Promise<{ savedImage: SavedImage; alreadySaved: boolean }> {
     if (!input.externalId || !input.imageUrl || !input.thumbUrl) {
-      throw new ValidationError("Thông tin hình ảnh không hợp lệ.");
+      throw new ValidationError("Invalid image metadata.");
     }
 
     const existing = await this.savedImageRepo.findByUserAndExternal(
@@ -123,7 +123,9 @@ export class UnsaveImageUseCase {
       input.userId,
     );
     if (!deleted) {
-      throw new NotFoundError("Không tìm thấy hình ảnh đã lưu hoặc bạn không có quyền xóa.");
+      throw new NotFoundError(
+        "Saved frame not found or you do not have permission to remove it.",
+      );
     }
   }
 }

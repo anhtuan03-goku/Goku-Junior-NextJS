@@ -76,7 +76,7 @@ export class PicsumRandomProvider implements IImageProvider {
             name: item.author,
             avatarUrl: null,
             profileUrl: item.url || null,
-            bio: "Nhiếp ảnh gia từ nguồn mở rộng Picsum Curated Archive.",
+            bio: "Photographer featured in the Picsum Curated Archive.",
             location: null,
             portfolioUrl: item.url || null,
             totalPhotos: 1,

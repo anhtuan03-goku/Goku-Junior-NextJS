@@ -84,7 +84,7 @@ export function SavedMultiPostStudio({
     e.preventDefault();
     if (!selectedItem || creatingPost) return;
     if (!newContent.trim()) {
-      toast.error("Vui lòng nhập nội dung bài viết.");
+      toast.error("Please write something before publishing.");
       return;
     }
 
@@ -104,7 +104,7 @@ export function SavedMultiPostStudio({
         error?: string;
       };
       if (!res.ok || !data.post) {
-        throw new Error(data.error ?? "Không thể tạo bài viết.");
+        throw new Error(data.error ?? "Unable to create story.");
       }
 
       setItems((prev) =>
@@ -117,11 +117,11 @@ export function SavedMultiPostStudio({
       setNewContent("");
       toast.success(
         newVisibility === "PUBLIC"
-          ? "Đã đăng bài viết công khai!"
-          : "Đã lưu bài viết riêng tư!",
+          ? "Published to Community Journal!"
+          : "Saved as a Private journal note!",
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Đã xảy ra lỗi.");
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setCreatingPost(false);
     }
@@ -144,7 +144,7 @@ export function SavedMultiPostStudio({
         error?: string;
       };
       if (!res.ok || !data.post) {
-        throw new Error(data.error ?? "Không thể đổi chế độ hiển thị.");
+        throw new Error(data.error ?? "Unable to switch visibility.");
       }
 
       setItems((prev) =>
@@ -155,11 +155,11 @@ export function SavedMultiPostStudio({
       );
       toast.success(
         nextVis === "PUBLIC"
-          ? "Đã chuyển bài viết sang Công khai (Public)."
-          : "Đã chuyển bài viết sang Riêng tư (Private).",
+          ? "Story is now Public."
+          : "Story is now Private.",
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Đã xảy ra lỗi.");
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setBusyPostId(null);
     }
@@ -180,7 +180,7 @@ export function SavedMultiPostStudio({
         error?: string;
       };
       if (!res.ok || !data.post) {
-        throw new Error(data.error ?? "Không thể lưu chỉnh sửa.");
+        throw new Error(data.error ?? "Unable to save changes.");
       }
 
       setItems((prev) =>
@@ -191,9 +191,9 @@ export function SavedMultiPostStudio({
       );
       setEditingPostId(null);
       setEditingContent("");
-      toast.success("Đã cập nhật nội dung bài viết.");
+      toast.success("Story updated.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Đã xảy ra lỗi.");
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setBusyPostId(null);
     }
@@ -209,7 +209,7 @@ export function SavedMultiPostStudio({
       });
       if (!res.ok) {
         const err = (await res.json()) as { error?: string };
-        throw new Error(err.error ?? "Không thể xóa bài viết.");
+        throw new Error(err.error ?? "Unable to delete story.");
       }
 
       setItems((prev) =>
@@ -218,9 +218,9 @@ export function SavedMultiPostStudio({
           posts: img.posts.filter((p) => p.id !== postId),
         })),
       );
-      toast.success("Đã xóa bài viết.");
+      toast.success("Story deleted.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Đã xảy ra lỗi.");
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setBusyPostId(null);
     }
@@ -236,15 +236,15 @@ export function SavedMultiPostStudio({
       });
       if (!res.ok) {
         const err = (await res.json()) as { error?: string };
-        throw new Error(err.error ?? "Không thể bỏ lưu ảnh.");
+        throw new Error(err.error ?? "Unable to remove saved frame.");
       }
       setItems((prev) => prev.filter((i) => i.id !== savedImageId));
       if (selectedId === savedImageId) {
         setSelectedId(null);
       }
-      toast.success("Đã xóa ảnh khỏi bộ sưu tập cá nhân.");
+      toast.success("Removed frame from your collection.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Đã xảy ra lỗi.");
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setUnsavingId(null);
     }
@@ -253,12 +253,13 @@ export function SavedMultiPostStudio({
   if (items.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border py-20 text-center space-y-3">
-        <p className="text-sm font-medium">Kho hình ảnh đã lưu đang trống</p>
+        <p className="text-sm font-medium">Your saved collection is empty</p>
         <p className="text-xs text-muted-foreground">
-          Hãy khám phá và lưu những bức ảnh bạn yêu thích để bắt đầu viết các bài viết cá nhân hoặc công khai.
+          Explore curated frames and save the ones that move you to start
+          writing Private or Public stories.
         </p>
         <Button variant="outline" size="sm" asChild>
-          <Link href="/">Khám phá hình ảnh ngay</Link>
+          <Link href="/">Explore frames</Link>
         </Button>
       </div>
     );
@@ -289,7 +290,7 @@ export function SavedMultiPostStudio({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={item.thumbUrl}
-                  alt={item.description ?? "Ảnh đã lưu"}
+                  alt={item.description ?? "Saved frame"}
                   loading="lazy"
                   className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
                 />
@@ -298,14 +299,15 @@ export function SavedMultiPostStudio({
               <div className="p-3.5 space-y-2">
                 {showPhotographerInfo && item.photographerName && (
                   <p className="truncate text-[11px] text-muted-foreground">
-                    Tác giả: {item.photographerName}
+                    Author: {item.photographerName}
                   </p>
                 )}
 
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5">
                     <Badge variant="secondary">
-                      {item.posts.length} bài viết
+                      {item.posts.length}{" "}
+                      {item.posts.length === 1 ? "story" : "stories"}
                     </Badge>
                     {pubCount > 0 && (
                       <Badge variant="outline">{pubCount} Public</Badge>
@@ -316,7 +318,7 @@ export function SavedMultiPostStudio({
                   </div>
 
                   <span className="text-[11px] font-medium text-foreground underline underline-offset-4">
-                    Viết / Quản lý →
+                    Write / Manage →
                   </span>
                 </div>
               </div>
@@ -338,9 +340,10 @@ export function SavedMultiPostStudio({
         {selectedItem && (
           <DialogContent className="max-w-3xl p-4 sm:p-6">
             <DialogHeader>
-              <DialogTitle>Không gian bài viết cho hình ảnh đã lưu</DialogTitle>
+              <DialogTitle>Story Studio</DialogTitle>
               <DialogDescription>
-                Bạn có thể viết nhiều bài viết khác nhau trên cùng một hình ảnh, chỉnh sửa nội dung hoặc bật/tắt Private ↔ Public bất cứ lúc nào.
+                Write multiple independent stories on the same saved frame,
+                refine your notes, or toggle Private ↔ Public anytime.
               </DialogDescription>
             </DialogHeader>
 
@@ -354,14 +357,14 @@ export function SavedMultiPostStudio({
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={selectedItem.imageUrl}
-                    alt={selectedItem.description ?? "Hình ảnh đã lưu"}
+                    alt={selectedItem.description ?? "Saved frame"}
                     className="w-full h-auto max-h-80 object-cover"
                   />
                 </div>
 
                 {showPhotographerInfo && selectedItem.photographerName && (
                   <div className="text-xs text-muted-foreground">
-                    Nhiếp ảnh gia:{" "}
+                    Photographer:{" "}
                     {selectedItem.photographerUsername &&
                     selectedItem.provider === "unsplash" ? (
                       <Link
@@ -386,7 +389,8 @@ export function SavedMultiPostStudio({
                   onClick={() => void handleUnsaveImage(selectedItem.id)}
                 >
                   <Trash2 className="size-3.5" />
-                  Bỏ lưu ảnh này (xóa kèm {selectedItem.posts.length} bài viết)
+                  Unsave frame (deletes {selectedItem.posts.length}{" "}
+                  {selectedItem.posts.length === 1 ? "story" : "stories"})
                 </Button>
               </div>
 
@@ -398,14 +402,14 @@ export function SavedMultiPostStudio({
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-xs font-semibold">
-                      Thêm bài viết mới cho ảnh này
+                      New story for this frame
                     </span>
                     <div className="inline-flex rounded-md border border-border p-0.5 bg-background">
                       <button
                         type="button"
                         onClick={() => setNewVisibility("PRIVATE")}
                         className={cn(
-                          "inline-flex min-h-9 items-center gap-1 rounded px-3 py-1 text-[11px] font-medium cursor-pointer transition-colors",
+                          "inline-flex min-h-9 items-center gap-1 rounded px-3 py-1 text-[11px] font-medium cursor-pointer transition-all active:scale-95",
                           newVisibility === "PRIVATE"
                             ? "bg-primary text-primary-foreground"
                             : "text-muted-foreground hover:text-foreground",
@@ -418,7 +422,7 @@ export function SavedMultiPostStudio({
                         type="button"
                         onClick={() => setNewVisibility("PUBLIC")}
                         className={cn(
-                          "inline-flex min-h-9 items-center gap-1 rounded px-3 py-1 text-[11px] font-medium cursor-pointer transition-colors",
+                          "inline-flex min-h-9 items-center gap-1 rounded px-3 py-1 text-[11px] font-medium cursor-pointer transition-all active:scale-95",
                           newVisibility === "PUBLIC"
                             ? "bg-primary text-primary-foreground"
                             : "text-muted-foreground hover:text-foreground",
@@ -434,13 +438,13 @@ export function SavedMultiPostStudio({
                     value={newContent}
                     onChange={(e) => setNewContent(e.target.value)}
                     maxLength={2000}
-                    placeholder="Viết suy nghĩ, cảm hứng hoặc câu chuyện của bạn về khung hình này..."
+                    placeholder="Capture a reflection, mood, or story inspired by this frame..."
                     className="min-h-20 bg-background text-xs sm:text-sm"
                   />
 
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] text-muted-foreground">
-                      {newContent.length}/2000 ký tự
+                      {newContent.length}/2000 characters
                     </span>
                     <Button type="submit" size="sm" disabled={creatingPost}>
                       {creatingPost ? (
@@ -448,7 +452,7 @@ export function SavedMultiPostStudio({
                       ) : (
                         <Plus className="size-3.5" />
                       )}
-                      Tạo bài viết
+                      Save story
                     </Button>
                   </div>
                 </form>
@@ -456,12 +460,12 @@ export function SavedMultiPostStudio({
                 {/* Existing posts list on this saved image */}
                 <div className="space-y-2.5">
                   <h3 className="text-xs font-medium text-muted-foreground">
-                    Danh sách bài viết trên ảnh này ({selectedItem.posts.length})
+                    Stories on this frame ({selectedItem.posts.length})
                   </h3>
 
                   {selectedItem.posts.length === 0 ? (
                     <p className="rounded-lg border border-dashed border-border py-6 text-center text-xs text-muted-foreground">
-                      Chưa có bài viết nào cho ảnh này.
+                      No stories written for this frame yet.
                     </p>
                   ) : (
                     <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
@@ -479,10 +483,12 @@ export function SavedMultiPostStudio({
                                 <button
                                   type="button"
                                   disabled={isBusy}
-                                  onClick={() => void handleToggleVisibility(post)}
-                                  title="Nhấn để chuyển đổi nhanh Private ↔ Public"
+                                  onClick={() =>
+                                    void handleToggleVisibility(post)
+                                  }
+                                  title="Click to toggle Private ↔ Public"
                                   className={cn(
-                                    "inline-flex min-h-9 items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-medium cursor-pointer transition-colors",
+                                    "inline-flex min-h-9 items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-medium cursor-pointer transition-all active:scale-95",
                                     post.visibility === "PUBLIC"
                                       ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
                                       : "border-border bg-secondary text-secondary-foreground",
@@ -491,19 +497,20 @@ export function SavedMultiPostStudio({
                                   {post.visibility === "PUBLIC" ? (
                                     <>
                                       <Globe className="size-3" />
-                                      Public (Bấm để ẩn)
+                                      Public (Click to hide)
                                     </>
                                   ) : (
                                     <>
                                       <Lock className="size-3" />
-                                      Private (Bấm để công khai)
+                                      Private (Click to publish)
                                     </>
                                   )}
                                 </button>
 
                                 <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                                   <Heart className="size-3" />
-                                  {post.likesCount} lượt thích
+                                  {post.likesCount}{" "}
+                                  {post.likesCount === 1 ? "heart" : "hearts"}
                                 </span>
                               </div>
 
@@ -532,7 +539,7 @@ export function SavedMultiPostStudio({
                                       setEditingContent("");
                                     }}
                                   >
-                                    Hủy
+                                    Cancel
                                   </Button>
                                   <Button
                                     type="button"
@@ -540,7 +547,7 @@ export function SavedMultiPostStudio({
                                     disabled={isBusy}
                                     onClick={() => void handleSaveEdit(post.id)}
                                   >
-                                    Lưu thay đổi
+                                    Save changes
                                   </Button>
                                 </div>
                               </div>
@@ -563,7 +570,7 @@ export function SavedMultiPostStudio({
                                   }}
                                 >
                                   <Pencil className="size-3.5" />
-                                  Sửa
+                                  Edit
                                 </Button>
                                 <Button
                                   type="button"
@@ -574,7 +581,7 @@ export function SavedMultiPostStudio({
                                   onClick={() => void handleDeletePost(post.id)}
                                 >
                                   <Trash2 className="size-3.5" />
-                                  Xóa
+                                  Delete
                                 </Button>
                               </div>
                             )}

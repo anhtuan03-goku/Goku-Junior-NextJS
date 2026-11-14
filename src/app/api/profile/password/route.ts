@@ -13,8 +13,8 @@ import {
 
 const changePasswordSchema = z
   .object({
-    currentPassword: z.string().min(1, "Vui lòng nhập mật khẩu hiện tại").max(128),
-    newPassword: z.string().min(8, "Mật khẩu mới tối thiểu 8 ký tự").max(128),
+    currentPassword: z.string().min(1, "Please enter your current password.").max(128),
+    newPassword: z.string().min(8, "New password must be at least 8 characters.").max(128),
   })
   .strict();
 

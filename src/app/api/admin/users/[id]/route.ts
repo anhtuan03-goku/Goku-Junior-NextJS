@@ -10,7 +10,7 @@ import {
   requireAdminUser,
 } from "@/interfaces/http/api-helpers";
 
-const userIdSchema = z.string().uuid("ID người dùng không hợp lệ.");
+const userIdSchema = z.string().uuid("Invalid user ID.");
 
 const adminUpdateUserSchema = z
   .object({

@@ -20,11 +20,11 @@ export async function POST(request: Request) {
     const file = formData.get("avatar");
 
     if (!(file instanceof File)) {
-      throw new ValidationError("Vui lòng chọn tệp hình ảnh đại diện hợp lệ.");
+      throw new ValidationError("Please select a valid avatar image file.");
     }
 
     if (file.size === 0 || file.size > 2 * 1024 * 1024) {
-      throw new ValidationError("Dung lượng ảnh đại diện phải lớn hơn 0B và tối đa 2MB.");
+      throw new ValidationError("Avatar size must be greater than 0B and at most 2MB.");
     }
 
     const arrayBuffer = await file.arrayBuffer();

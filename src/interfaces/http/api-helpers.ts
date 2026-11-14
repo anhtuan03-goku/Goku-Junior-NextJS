@@ -31,7 +31,7 @@ export async function getOptionalSafeSessionUser(): Promise<SafeUserDTO | null> 
 export async function requireSessionUser(): Promise<User> {
   const user = await getOptionalSessionUser();
   if (!user) {
-    throw new UnauthorizedError("Vui lòng đăng nhập để tiếp tục.");
+    throw new UnauthorizedError("Please sign in to continue.");
   }
   return user;
 }
@@ -39,7 +39,7 @@ export async function requireSessionUser(): Promise<User> {
 export async function requireAdminUser(): Promise<User> {
   const user = await requireSessionUser();
   if (user.role !== "ADMIN") {
-    throw new ForbiddenError("Khu vực này chỉ dành riêng cho Quản trị viên.");
+    throw new ForbiddenError("This area is restricted to Administrators.");
   }
   return user;
 }
@@ -95,7 +95,7 @@ export function handleApiError(error: unknown): NextResponse {
     const firstIssue = error.issues[0];
     const msg = firstIssue
       ? `${firstIssue.message}`
-      : "Dữ liệu gửi lên không hợp lệ.";
+      : "Invalid request payload.";
     return NextResponse.json(
       { error: msg, code: "VALIDATION_ERROR" },
       { status: 400 },
@@ -106,7 +106,7 @@ export function handleApiError(error: unknown): NextResponse {
   console.error("[API Unhandled Error]", error instanceof Error ? error.name : "UnknownError");
   return NextResponse.json(
     {
-      error: "Đã xảy ra lỗi xử lý phía máy chủ, vui lòng thử lại sau.",
+      error: "An unexpected server error occurred. Please try again shortly.",
       code: "INTERNAL_ERROR",
     },
     { status: 500 },

@@ -17,19 +17,19 @@ export class ValidationError extends DomainError {
 }
 
 export class UnauthorizedError extends DomainError {
-  constructor(message = "Phiên đăng nhập không hợp lệ hoặc đã hết hạn.") {
+  constructor(message = "Your session is invalid or has expired.") {
     super(message, "UNAUTHORIZED", 401);
   }
 }
 
 export class ForbiddenError extends DomainError {
-  constructor(message = "Bạn không có quyền thực hiện thao tác này.") {
+  constructor(message = "You do not have permission to perform this action.") {
     super(message, "FORBIDDEN", 403);
   }
 }
 
 export class NotFoundError extends DomainError {
-  constructor(message = "Không tìm thấy tài nguyên yêu cầu.") {
+  constructor(message = "The requested resource was not found.") {
     super(message, "NOT_FOUND", 404);
   }
 }
@@ -44,7 +44,7 @@ export class RateLimitError extends DomainError {
   public readonly retryAfterSeconds: number;
 
   constructor(
-    message = "Bạn thao tác quá nhanh, vui lòng thử lại sau ít giây.",
+    message = "Too many requests. Please wait a moment and try again.",
     retryAfterSeconds = 30,
   ) {
     super(message, "RATE_LIMITED", 429);

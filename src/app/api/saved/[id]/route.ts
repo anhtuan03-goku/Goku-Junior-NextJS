@@ -10,7 +10,7 @@ import {
   requireSessionUser,
 } from "@/interfaces/http/api-helpers";
 
-const idSchema = z.string().uuid("ID hình ảnh đã lưu không hợp lệ.");
+const idSchema = z.string().uuid("Invalid saved frame ID.");
 
 export async function DELETE(
   request: Request,

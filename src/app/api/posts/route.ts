@@ -13,11 +13,11 @@ import {
 
 const createPostSchema = z
   .object({
-    savedImageId: z.string().uuid("ID hình ảnh đã lưu không hợp lệ."),
+    savedImageId: z.string().uuid("Invalid saved frame ID."),
     content: z
       .string()
-      .min(1, "Nội dung bài viết không được để trống.")
-      .max(2000, "Nội dung bài viết tối đa 2000 ký tự."),
+      .min(1, "Story content cannot be empty.")
+      .max(2000, "Story content must not exceed 2000 characters."),
     visibility: z.enum(["PRIVATE", "PUBLIC"]).default("PRIVATE"),
   })
   .strict();

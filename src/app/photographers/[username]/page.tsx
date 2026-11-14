@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ExternalLink, Globe, MapPin } from "lucide-react";
 import { MinimalImageCard } from "@/components/images/image-card";
@@ -6,8 +7,54 @@ import { Button } from "@/components/ui/button";
 import { DomainError } from "@/domain/errors/domain-errors";
 import { getContainer } from "@/infrastructure/container";
 import { getOptionalSessionUser } from "@/interfaces/http/api-helpers";
+import { SITE_CONFIG, getSiteUrl } from "@/lib/site-config";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ username: string }>;
+}): Promise<Metadata> {
+  const { username } = await params;
+  const decodedUsername = decodeURIComponent(username);
+  const canonicalPath = `/photographers/${encodeURIComponent(decodedUsername)}`;
+
+  try {
+    const detail = await getContainer().useCases.getPhotographerDetail.execute({
+      username: decodedUsername,
+      viewerUserId: null,
+    });
+    const title = `${detail.name} (@${detail.username}) — Photographer`;
+    const description =
+      detail.bio?.slice(0, 160) ||
+      `Explore ${detail.totalPhotos.toLocaleString("en-US")} curated minimalist photographs by ${detail.name} (@${detail.username}) on ${SITE_CONFIG.name}.`;
+
+    return {
+      title,
+      description,
+      alternates: { canonical: canonicalPath },
+      openGraph: {
+        type: "profile",
+        url: canonicalPath,
+        title: `${title} · ${SITE_CONFIG.name}`,
+        description,
+        images: detail.avatarUrl ? [{ url: detail.avatarUrl }] : undefined,
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: `${title} · ${SITE_CONFIG.name}`,
+        description,
+      },
+    };
+  } catch {
+    return {
+      title: `@${decodedUsername} — Photographer`,
+      description: `Photographer profile and curated works on ${SITE_CONFIG.name}.`,
+      alternates: { canonical: canonicalPath },
+    };
+  }
+}
 
 export default async function PhotographerDetailPage({
   params,
@@ -34,7 +81,7 @@ export default async function PhotographerDetailPage({
     errorMessage =
       err instanceof DomainError
         ? err.message
-        : "Không thể tải thông tin nhiếp ảnh gia lúc này.";
+        : "Unable to load photographer details right now.";
   }
 
   if (!detail) {
@@ -44,20 +91,46 @@ export default async function PhotographerDetailPage({
         <Button variant="outline" size="sm" asChild>
           <Link href="/">
             <ArrowLeft className="size-3.5" />
-            Quay về Khám phá
+            Back to Explore
           </Link>
         </Button>
       </div>
     );
   }
 
+  const baseUrl = getSiteUrl().origin;
+  const profileJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ProfilePage",
+    mainEntity: {
+      "@type": "Person",
+      name: detail.name,
+      alternateName: `@${detail.username}`,
+      description: detail.bio ?? undefined,
+      image: detail.avatarUrl ?? undefined,
+      url: `${baseUrl}/photographers/${encodeURIComponent(detail.username)}`,
+    },
+  };
+
   return (
     <section className="space-y-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(profileJsonLd).replace(/</g, "\\u003c"),
+        }}
+      />
+
       <div>
-        <Button variant="ghost" size="sm" asChild className="-ml-2 text-muted-foreground">
+        <Button
+          variant="ghost"
+          size="sm"
+          asChild
+          className="-ml-2 text-muted-foreground"
+        >
           <Link href="/">
             <ArrowLeft className="size-3.5" />
-            Quay lại Khám phá
+            Back to Explore
           </Link>
         </Button>
       </div>
@@ -80,9 +153,7 @@ export default async function PhotographerDetailPage({
                   @{detail.username}
                 </span>
                 {detail.isFallbackCache && (
-                  <Badge variant="secondary">
-                    Đồng bộ nhanh từ bộ nhớ đệm
-                  </Badge>
+                  <Badge variant="secondary">Synced from edge cache</Badge>
                 )}
               </div>
 
@@ -99,28 +170,30 @@ export default async function PhotographerDetailPage({
                     {detail.location}
                   </span>
                 )}
-                {detail.portfolioUrl && /^https?:\/\//i.test(detail.portfolioUrl) && (
-                  <a
-                    href={detail.portfolioUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 hover:text-foreground underline underline-offset-4"
-                  >
-                    <Globe className="size-3.5" />
-                    Portfolio
-                  </a>
-                )}
-                {detail.profileUrl && /^https?:\/\//i.test(detail.profileUrl) && (
-                  <a
-                    href={detail.profileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 hover:text-foreground underline underline-offset-4"
-                  >
-                    Hồ sơ Unsplash
-                    <ExternalLink className="size-3" />
-                  </a>
-                )}
+                {detail.portfolioUrl &&
+                  /^https?:\/\//i.test(detail.portfolioUrl) && (
+                    <a
+                      href={detail.portfolioUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 hover:text-foreground underline underline-offset-4"
+                    >
+                      <Globe className="size-3.5" />
+                      Portfolio
+                    </a>
+                  )}
+                {detail.profileUrl &&
+                  /^https?:\/\//i.test(detail.profileUrl) && (
+                    <a
+                      href={detail.profileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 hover:text-foreground underline underline-offset-4"
+                    >
+                      Unsplash Profile
+                      <ExternalLink className="size-3" />
+                    </a>
+                  )}
               </div>
             </div>
           </div>
@@ -128,21 +201,21 @@ export default async function PhotographerDetailPage({
           <div className="grid grid-cols-3 gap-4 border-t sm:border-t-0 pt-4 sm:pt-0 text-center sm:text-right shrink-0">
             <div>
               <p className="text-lg font-semibold tabular-nums">
-                {detail.totalPhotos.toLocaleString("vi-VN")}
+                {detail.totalPhotos.toLocaleString("en-US")}
               </p>
-              <p className="text-[11px] text-muted-foreground">Tác phẩm</p>
+              <p className="text-[11px] text-muted-foreground">Photos</p>
             </div>
             <div>
               <p className="text-lg font-semibold tabular-nums">
-                {detail.totalLikes.toLocaleString("vi-VN")}
+                {detail.totalLikes.toLocaleString("en-US")}
               </p>
-              <p className="text-[11px] text-muted-foreground">Lượt thích</p>
+              <p className="text-[11px] text-muted-foreground">Likes</p>
             </div>
             <div>
               <p className="text-lg font-semibold tabular-nums">
-                {detail.totalCollections.toLocaleString("vi-VN")}
+                {detail.totalCollections.toLocaleString("en-US")}
               </p>
-              <p className="text-[11px] text-muted-foreground">Bộ sưu tập</p>
+              <p className="text-[11px] text-muted-foreground">Collections</p>
             </div>
           </div>
         </div>
@@ -151,12 +224,12 @@ export default async function PhotographerDetailPage({
       {/* Photographer's Curated Gallery */}
       <div className="space-y-4">
         <h2 className="text-sm font-medium text-muted-foreground">
-          Các tác phẩm tiêu biểu ({detail.photos.length})
+          Featured Works ({detail.photos.length})
         </h2>
 
         {detail.photos.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border py-14 text-center text-xs text-muted-foreground">
-            Chưa có hình ảnh nào được lưu trong bộ sưu tập hiển thị của tác giả này.
+            No cached photographs are available for this photographer yet.
           </div>
         ) : (
           <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4">

@@ -13,8 +13,8 @@ import {
 
 const loginSchema = z
   .object({
-    username: z.string().min(1, "Vui lòng nhập tên đăng nhập").max(64),
-    password: z.string().min(1, "Vui lòng nhập mật khẩu").max(128),
+    username: z.string().min(1, "Please enter your username.").max(64),
+    password: z.string().min(1, "Please enter your password.").max(128),
   })
   .strict();
 

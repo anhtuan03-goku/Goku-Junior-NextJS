@@ -13,7 +13,7 @@ import {
  */
 export function detectSafeImageMime(buffer: Buffer): "image/jpeg" | "image/png" | "image/webp" {
   if (buffer.byteLength < 12) {
-    throw new ValidationError("Tệp hình ảnh bị hỏng hoặc quá nhỏ.");
+    throw new ValidationError("Image file is corrupted or too small.");
   }
 
   // JPEG: FF D8 FF
@@ -50,7 +50,7 @@ export function detectSafeImageMime(buffer: Buffer): "image/jpeg" | "image/png" 
   }
 
   throw new ValidationError(
-    "Định dạng tệp không hợp lệ. Chỉ chấp nhận ảnh thật chuẩn WebP, JPEG hoặc PNG (không chấp nhận SVG).",
+    "Unsupported file format. Only binary WebP, JPEG, or PNG images are accepted (SVG is rejected).",
   );
 }
 

@@ -16,14 +16,14 @@ import type {
 function validatePostContent(raw: string): string {
   const cleaned = raw.trim();
   if (cleaned.length < 1 || cleaned.length > 2000) {
-    throw new ValidationError("Nội dung bài viết phải từ 1 đến 2000 ký tự.");
+    throw new ValidationError("Story content must be between 1 and 2000 characters.");
   }
   return cleaned;
 }
 
 function validateVisibility(v: string): PostVisibility {
   if (v !== "PRIVATE" && v !== "PUBLIC") {
-    throw new ValidationError("Chế độ bài viết chỉ chấp nhận PRIVATE hoặc PUBLIC.");
+    throw new ValidationError("Story visibility must be PRIVATE or PUBLIC.");
   }
   return v;
 }
@@ -46,10 +46,12 @@ export class CreatePostUseCase {
   }): Promise<PostViewItem> {
     const savedImage = await this.savedImageRepo.findById(input.savedImageId);
     if (!savedImage) {
-      throw new NotFoundError("Không tìm thấy hình ảnh đã lưu.");
+      throw new NotFoundError("Saved frame not found.");
     }
     if (savedImage.userId !== input.authorId) {
-      throw new ForbiddenError("Bạn chỉ có thể viết bài cho hình ảnh do chính mình lưu.");
+      throw new ForbiddenError(
+        "You can only write stories on frames saved in your own collection.",
+      );
     }
 
     const content = validatePostContent(input.content);
@@ -75,10 +77,10 @@ export class UpdatePostUseCase {
   }): Promise<PostViewItem> {
     const existing = await this.postRepo.findById(input.postId);
     if (!existing) {
-      throw new NotFoundError("Không tìm thấy bài viết.");
+      throw new NotFoundError("Story not found.");
     }
     if (existing.authorId !== input.userId) {
-      throw new ForbiddenError("Bạn không có quyền chỉnh sửa bài viết này.");
+      throw new ForbiddenError("You do not have permission to edit this story.");
     }
 
     const patch: { content?: string; visibility?: PostVisibility } = {};
@@ -89,7 +91,7 @@ export class UpdatePostUseCase {
       patch.visibility = validateVisibility(input.visibility);
     }
     if (patch.content === undefined && patch.visibility === undefined) {
-      throw new ValidationError("Không có dữ liệu thay đổi để cập nhật.");
+      throw new ValidationError("No changes provided to update.");
     }
 
     return this.postRepo.update(existing.id, patch, input.userId);
@@ -106,10 +108,10 @@ export class DeletePostUseCase {
   }): Promise<void> {
     const existing = await this.postRepo.findById(input.postId);
     if (!existing) {
-      throw new NotFoundError("Không tìm thấy bài viết.");
+      throw new NotFoundError("Story not found.");
     }
     if (existing.authorId !== input.actorId && input.actorRole !== "ADMIN") {
-      throw new ForbiddenError("Bạn không có quyền xóa bài viết này.");
+      throw new ForbiddenError("You do not have permission to delete this story.");
     }
     await this.postRepo.deleteById(existing.id);
   }
@@ -123,9 +125,10 @@ export class ListPublicPostsUseCase {
     limit?: number;
     viewerUserId?: string | null;
   }): Promise<{ items: PostViewItem[]; hasMore: boolean }> {
-    const safePage = Number.isFinite(params.page) && params.page >= 1
-      ? Math.floor(params.page)
-      : 1;
+    const safePage =
+      Number.isFinite(params.page) && params.page >= 1
+        ? Math.floor(params.page)
+        : 1;
     const safeLimit = Math.min(Math.max(params.limit ?? 18, 1), 30);
 
     return this.postRepo.listPublicFeed({
@@ -149,11 +152,11 @@ export class TogglePostLikeUseCase {
   }): Promise<{ likesCount: number; likedByMe: boolean }> {
     const post = await this.postRepo.findById(input.postId);
     if (!post) {
-      throw new NotFoundError("Không tìm thấy bài viết.");
+      throw new NotFoundError("Story not found.");
     }
     // Block liking someone else's PRIVATE post (anti-IDOR)
     if (post.visibility === "PRIVATE" && post.authorId !== input.userId) {
-      throw new NotFoundError("Không tìm thấy bài viết.");
+      throw new NotFoundError("Story not found.");
     }
 
     return this.postRepo.toggleLike({

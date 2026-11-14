@@ -10,7 +10,7 @@ import {
   requireSessionUser,
 } from "@/interfaces/http/api-helpers";
 
-const postIdSchema = z.string().uuid("ID bài viết không hợp lệ.");
+const postIdSchema = z.string().uuid("Invalid story ID.");
 
 export async function POST(
   request: Request,

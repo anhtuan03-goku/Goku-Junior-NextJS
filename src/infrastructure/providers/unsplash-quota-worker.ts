@@ -434,7 +434,7 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
             );
           } else if (!cachedProfile && cachedPhotos.length === 0) {
             throw new NotFoundError(
-              `Không tìm thấy thông tin nhiếp ảnh gia @${cleanUsername}.`,
+              `Photographer @${cleanUsername} was not found.`,
             );
           }
         }
@@ -470,7 +470,7 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
       }
 
       throw new NotFoundError(
-        `Chưa có dữ liệu lưu trữ cho nhiếp ảnh gia @${cleanUsername}. Hệ thống đã đưa vào hàng đợi đồng bộ.`,
+        `No cached profile for @${cleanUsername} yet. A background sync has been queued.`,
       );
     });
 

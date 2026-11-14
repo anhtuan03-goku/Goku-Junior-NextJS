@@ -25,7 +25,7 @@ function assertSafeRemoteImageUrl(rawUrl: string): string {
   try {
     u = new URL(rawUrl);
   } catch {
-    throw new ValidationError("URL hình ảnh không hợp lệ.");
+    throw new ValidationError("Invalid image URL.");
   }
   if (
     u.protocol !== "https:" ||
@@ -34,7 +34,7 @@ function assertSafeRemoteImageUrl(rawUrl: string): string {
     !ALLOWED_IMAGE_HOSTS.has(u.hostname)
   ) {
     throw new ValidationError(
-      "Nguồn lưu trữ hình ảnh không nằm trong danh sách tin cậy.",
+      "Image host is not in the trusted provider allowlist.",
     );
   }
   return u.toString();
@@ -45,10 +45,10 @@ function assertSafeHttpsProfileUrl(rawUrl: string): string {
   try {
     u = new URL(rawUrl);
   } catch {
-    throw new ValidationError("URL hồ sơ nhiếp ảnh gia không hợp lệ.");
+    throw new ValidationError("Invalid photographer profile URL.");
   }
   if (u.protocol !== "https:" || u.username || u.password) {
-    throw new ValidationError("URL hồ sơ nhiếp ảnh gia bắt buộc dùng giao thức HTTPS an toàn.");
+    throw new ValidationError("Photographer profile URL must use secure HTTPS.");
   }
   return u.toString();
 }
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
         !isSafeUnsplashDownloadUrl(parsed.downloadLocation)
       ) {
         throw new ValidationError(
-          "URL download_location không hợp lệ hoặc không thuộc api.unsplash.com.",
+          "Invalid download_location URL or untrusted upstream host.",
         );
       }
       safeDownloadLocation = parsed.downloadLocation;

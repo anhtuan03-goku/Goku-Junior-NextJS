@@ -31,12 +31,12 @@ export class UpdateUsernameUseCase {
   }): Promise<{ user: SafeUserDTO; token: string }> {
     const normalized = normalizeAndValidateUsername(input.newUsername);
     const current = await this.userRepo.findById(input.userId);
-    if (!current) throw new NotFoundError("Không tìm thấy người dùng.");
+    if (!current) throw new NotFoundError("User not found.");
 
     if (current.username !== normalized) {
       const taken = await this.userRepo.findByUsername(normalized);
       if (taken && taken.id !== input.userId) {
-        throw new ConflictError("Tên đăng nhập này đã được sử dụng.");
+        throw new ConflictError("This username is already in use.");
       }
     }
 
@@ -65,14 +65,14 @@ export class ChangePasswordUseCase {
     newPassword: string;
   }): Promise<{ user: SafeUserDTO; token: string }> {
     const user = await this.userRepo.findById(input.userId);
-    if (!user) throw new NotFoundError("Không tìm thấy người dùng.");
+    if (!user) throw new NotFoundError("User not found.");
 
     const ok = await this.passwordHasher.verify(
       input.currentPassword,
       user.passwordHash,
     );
     if (!ok) {
-      throw new UnauthorizedError("Mật khẩu hiện tại không chính xác.");
+      throw new UnauthorizedError("Current password is incorrect.");
     }
 
     const validatedNew = validatePassword(input.newPassword);
@@ -117,14 +117,16 @@ export class UpdateAvatarUseCase {
     mimeType: string;
   }): Promise<SafeUserDTO> {
     if (!input.fileBuffer || input.fileBuffer.byteLength === 0) {
-      throw new ValidationError("Tệp ảnh đại diện không được để trống.");
+      throw new ValidationError("Avatar file cannot be empty.");
     }
     if (input.fileBuffer.byteLength > MAX_AVATAR_BYTES) {
-      throw new ValidationError("Ảnh đại diện sau khi nén không được vượt quá 2MB.");
+      throw new ValidationError(
+        "Compressed avatar image must not exceed 2MB.",
+      );
     }
 
     const user = await this.userRepo.findById(input.userId);
-    if (!user) throw new NotFoundError("Không tìm thấy người dùng.");
+    if (!user) throw new NotFoundError("User not found.");
 
     const { avatarUrl, avatarPublicId } =
       await this.avatarStorage.uploadUserAvatar({
@@ -151,7 +153,7 @@ export class RemoveAvatarUseCase {
 
   async execute(userId: string): Promise<SafeUserDTO> {
     const user = await this.userRepo.findById(userId);
-    if (!user) throw new NotFoundError("Không tìm thấy người dùng.");
+    if (!user) throw new NotFoundError("User not found.");
 
     if (user.avatarPublicId) {
       await this.avatarStorage.deleteUserAvatar(user.avatarPublicId);

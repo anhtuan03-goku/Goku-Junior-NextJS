@@ -47,7 +47,7 @@ export function ProfileSettingsPanel({
       const compressedKb = Math.max(1, Math.round(compressedFile.size / 1024));
 
       setCompressionNote(
-        `Đã nén tự động: ${originalKb} KB → ${compressedKb} KB (${compressedFile.type})`,
+        `Auto-compressed: ${originalKb} KB → ${compressedKb} KB (${compressedFile.type})`,
       );
 
       const form = new FormData();
@@ -63,14 +63,16 @@ export function ProfileSettingsPanel({
         error?: string;
       };
       if (!res.ok || !data.user) {
-        throw new Error(data.error ?? "Không thể tải lên ảnh đại diện.");
+        throw new Error(data.error ?? "Unable to upload avatar.");
       }
 
       setUser(data.user);
-      toast.success("Đã cập nhật ảnh đại diện (slot cũ đã được thu hồi tự động).");
+      toast.success("Avatar updated (previous slot automatically reclaimed).");
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Lỗi tải ảnh đại diện.");
+      toast.error(
+        err instanceof Error ? err.message : "Avatar upload failed.",
+      );
     } finally {
       setUploadingAvatar(false);
     }
@@ -89,14 +91,14 @@ export function ProfileSettingsPanel({
         error?: string;
       };
       if (!res.ok || !data.user) {
-        throw new Error(data.error ?? "Không thể xóa ảnh đại diện.");
+        throw new Error(data.error ?? "Unable to remove avatar.");
       }
       setUser(data.user);
       setCompressionNote(null);
-      toast.success("Đã xóa ảnh đại diện khỏi Cloudinary.");
+      toast.success("Avatar removed and Cloudinary slot freed.");
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Đã xảy ra lỗi.");
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setUploadingAvatar(false);
     }
@@ -118,14 +120,14 @@ export function ProfileSettingsPanel({
         error?: string;
       };
       if (!res.ok || !data.user) {
-        throw new Error(data.error ?? "Không thể đổi tên đăng nhập.");
+        throw new Error(data.error ?? "Unable to update username.");
       }
       setUser(data.user);
       setUsername(data.user.username);
-      toast.success(`Đã đổi tên đăng nhập thành @${data.user.username}`);
+      toast.success(`Username updated to @${data.user.username}`);
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Đã xảy ra lỗi.");
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setSavingUsername(false);
     }
@@ -150,13 +152,13 @@ export function ProfileSettingsPanel({
         error?: string;
       };
       if (!res.ok || !data.user) {
-        throw new Error(data.error ?? "Không thể đổi mật khẩu.");
+        throw new Error(data.error ?? "Unable to change password.");
       }
       setCurrentPassword("");
       setNewPassword("");
-      toast.success("Đã cập nhật mật khẩu mới an toàn.");
+      toast.success("Password updated securely.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Đã xảy ra lỗi.");
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setSavingPassword(false);
     }
@@ -167,9 +169,11 @@ export function ProfileSettingsPanel({
       {/* Section 1: Single-slot Cloudinary Avatar */}
       <div className="rounded-xl border border-border bg-card p-6 space-y-4">
         <div>
-          <h2 className="text-sm font-semibold">Ảnh đại diện (1 Slot duy nhất)</h2>
+          <h2 className="text-sm font-semibold">Avatar (Single-Slot Storage)</h2>
           <p className="text-xs text-muted-foreground">
-            Ảnh được tự động cắt vuông và nén sang chuẩn WebP nhẹ trước khi lưu lên Cloudinary. Khi cập nhật ảnh mới, ảnh cũ được xóa tự động.
+            Your image is center-cropped and compressed to lightweight WebP
+            before uploading to Cloudinary. Updating automatically purges the
+            previous slot.
           </p>
         </div>
 
@@ -201,7 +205,7 @@ export function ProfileSettingsPanel({
                 ) : (
                   <Upload className="size-3.5" />
                 )}
-                Chọn & nén ảnh mới
+                Choose & compress photo
               </Button>
 
               {activeUser.avatarUrl && (
@@ -214,7 +218,7 @@ export function ProfileSettingsPanel({
                   onClick={() => void handleRemoveAvatar()}
                 >
                   <Trash2 className="size-3.5" />
-                  Xóa avatar
+                  Remove avatar
                 </Button>
               )}
             </div>
@@ -232,16 +236,17 @@ export function ProfileSettingsPanel({
       <div className="rounded-xl border border-border bg-card p-6 flex items-center justify-between gap-4">
         <div className="space-y-1">
           <h2 className="text-sm font-semibold">
-            Hiển thị thông tin nhiếp ảnh gia theo ảnh
+            Show photographer attribution on frames
           </h2>
           <p className="text-xs text-muted-foreground">
-            Khi bật, mỗi bức ảnh sẽ hiển thị tên nhiếp ảnh gia và đường dẫn xem hồ sơ chi tiết của tác giả đó.
+            When enabled, each frame displays the photographer&apos;s name and a
+            direct link to their curated profile.
           </p>
         </div>
         <Switch
           checked={showPhotographerInfo}
           onCheckedChange={(checked) => void togglePhotographerMode(checked)}
-          aria-label="Bật hoặc tắt hiển thị thông tin nhiếp ảnh gia"
+          aria-label="Toggle photographer attribution"
         />
       </div>
 
@@ -251,9 +256,10 @@ export function ProfileSettingsPanel({
         className="rounded-xl border border-border bg-card p-6 space-y-4"
       >
         <div>
-          <h2 className="text-sm font-semibold">Đổi tên đăng nhập (Unique)</h2>
+          <h2 className="text-sm font-semibold">Change Username (Unique)</h2>
           <p className="text-xs text-muted-foreground">
-            Chỉ gồm chữ thường, chữ số và ký tự `._-` (từ 3–32 ký tự).
+            Lowercase letters, numbers, and `._-` characters only (3–32
+            characters).
           </p>
         </div>
 
@@ -269,10 +275,13 @@ export function ProfileSettingsPanel({
           <Button
             type="submit"
             size="sm"
-            disabled={savingUsername || username.trim().toLowerCase() === activeUser.username}
+            disabled={
+              savingUsername ||
+              username.trim().toLowerCase() === activeUser.username
+            }
           >
             {savingUsername && <Loader2 className="size-3.5 animate-spin" />}
-            Lưu tên mới
+            Save username
           </Button>
         </div>
       </form>
@@ -283,16 +292,17 @@ export function ProfileSettingsPanel({
         className="rounded-xl border border-border bg-card p-6 space-y-4"
       >
         <div>
-          <h2 className="text-sm font-semibold">Đổi mật khẩu</h2>
+          <h2 className="text-sm font-semibold">Change Password</h2>
           <p className="text-xs text-muted-foreground">
-            Đổi mật khẩu sẽ tự động thu hồi mọi phiên đăng nhập cũ trên thiết bị khác.
+            Updating your password immediately revokes all active sessions on
+            other devices.
           </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1">
             <label className="text-xs font-medium" htmlFor="current-password">
-              Mật khẩu hiện tại
+              Current password
             </label>
             <Input
               id="current-password"
@@ -305,7 +315,7 @@ export function ProfileSettingsPanel({
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium" htmlFor="new-password">
-              Mật khẩu mới (tối thiểu 8 ký tự)
+              New password (at least 8 characters)
             </label>
             <Input
               id="new-password"
@@ -322,7 +332,7 @@ export function ProfileSettingsPanel({
 
         <Button type="submit" size="sm" disabled={savingPassword}>
           {savingPassword && <Loader2 className="size-3.5 animate-spin" />}
-          Cập nhật mật khẩu
+          Update password
         </Button>
       </form>
     </div>

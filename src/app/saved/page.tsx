@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import {
   type ClientSavedImageItem,
@@ -7,6 +8,15 @@ import { getContainer } from "@/infrastructure/container";
 import { getOptionalSessionUser } from "@/interfaces/http/api-helpers";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Saved Frames & Stories",
+  description: "Manage your saved frames and personal visual journal entries.",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default async function SavedPage({
   searchParams,
@@ -44,10 +54,11 @@ export default async function SavedPage({
     <section className="space-y-6">
       <div className="space-y-1">
         <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
-          Kho ảnh đã lưu & Bài viết của bạn
+          Saved Frames & Stories
         </h1>
         <p className="text-xs sm:text-sm text-muted-foreground">
-          Nhấn vào bất kỳ hình ảnh nào để viết thêm bài viết mới, chỉnh sửa nội dung hoặc chuyển đổi chế độ Private ↔ Public.
+          Select any saved frame to write multiple stories, edit notes, or
+          switch visibility between Private and Public anytime.
         </p>
       </div>
 

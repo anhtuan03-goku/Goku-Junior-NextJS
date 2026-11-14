@@ -64,7 +64,7 @@ export class PostgresUserRepository implements IUserRepository {
         "code" in err &&
         (err as { code?: string }).code === "23505"
       ) {
-        throw new ConflictError("Tên đăng nhập này đã tồn tại.");
+        throw new ConflictError("This username is already taken.");
       }
       throw err;
     }
@@ -80,7 +80,7 @@ export class PostgresUserRepository implements IUserRepository {
         })
         .where(eq(users.id, userId))
         .returning();
-      if (!rows[0]) throw new NotFoundError("Không tìm thấy người dùng.");
+      if (!rows[0]) throw new NotFoundError("User not found.");
       return mapUserRow(rows[0]);
     } catch (err: unknown) {
       if (
@@ -89,7 +89,7 @@ export class PostgresUserRepository implements IUserRepository {
         "code" in err &&
         (err as { code?: string }).code === "23505"
       ) {
-        throw new ConflictError("Tên đăng nhập này đã được sử dụng.");
+        throw new ConflictError("This username is already in use.");
       }
       throw err;
     }
@@ -105,7 +105,7 @@ export class PostgresUserRepository implements IUserRepository {
       })
       .where(eq(users.id, userId))
       .returning();
-    if (!rows[0]) throw new NotFoundError("Không tìm thấy người dùng.");
+    if (!rows[0]) throw new NotFoundError("User not found.");
     return mapUserRow(rows[0]);
   }
 
@@ -121,7 +121,7 @@ export class PostgresUserRepository implements IUserRepository {
       })
       .where(eq(users.id, userId))
       .returning();
-    if (!rows[0]) throw new NotFoundError("Không tìm thấy người dùng.");
+    if (!rows[0]) throw new NotFoundError("User not found.");
     return mapUserRow(rows[0]);
   }
 
@@ -139,7 +139,7 @@ export class PostgresUserRepository implements IUserRepository {
       })
       .where(eq(users.id, userId))
       .returning();
-    if (!rows[0]) throw new NotFoundError("Không tìm thấy người dùng.");
+    if (!rows[0]) throw new NotFoundError("User not found.");
     return mapUserRow(rows[0]);
   }
 
@@ -159,7 +159,7 @@ export class PostgresUserRepository implements IUserRepository {
       .set(updates)
       .where(eq(users.id, userId))
       .returning();
-    if (!rows[0]) throw new NotFoundError("Không tìm thấy người dùng.");
+    if (!rows[0]) throw new NotFoundError("User not found.");
     return mapUserRow(rows[0]);
   }
 

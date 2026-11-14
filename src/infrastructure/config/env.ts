@@ -10,7 +10,7 @@ const envSchema = z.object({
   INITIAL_ADMIN_USERNAME: z.string().min(3).default("admin"),
   INITIAL_ADMIN_PASSWORD: z.string().min(8),
   UNSPLASH_ACCESS_KEY: z.string().min(10, "UNSPLASH_ACCESS_KEY is required"),
-  UNSPLASH_APP_NAME: z.string().default("goku_junior_nextjs"),
+  UNSPLASH_APP_NAME: z.string().default("naut_frame"),
   CLOUDINARY_URL: z
     .string()
     .startsWith("cloudinary://", "CLOUDINARY_URL must start with cloudinary://"),

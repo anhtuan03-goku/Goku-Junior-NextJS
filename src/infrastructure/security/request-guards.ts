@@ -26,7 +26,7 @@ export class SlidingWindowRateLimiter {
         Math.ceil((oldest + this.windowMs - now) / 1000),
       );
       throw new RateLimitError(
-        `Quá nhiều yêu cầu trong thời gian ngắn. Vui lòng thử lại sau ${retryAfterSeconds} giây.`,
+        `Too many requests. Please try again in ${retryAfterSeconds}s.`,
         retryAfterSeconds,
       );
     }
@@ -68,7 +68,7 @@ export function verifyCsrfOrigin(request: Request): void {
     // Same-origin non-browser or server calls without Origin are checked via Sec-Fetch-Site if present
     const secFetchSite = request.headers.get("sec-fetch-site");
     if (secFetchSite && secFetchSite !== "same-origin" && secFetchSite !== "none") {
-      throw new ForbiddenError("Yêu cầu bị từ chối bởi chính sách bảo vệ CSRF.");
+      throw new ForbiddenError("Request rejected by CSRF protection policy.");
     }
     return;
   }
@@ -84,10 +84,10 @@ export function verifyCsrfOrigin(request: Request): void {
   try {
     originHost = new URL(origin).host;
   } catch {
-    throw new ForbiddenError("Origin header không hợp lệ.");
+    throw new ForbiddenError("Malformed Origin header.");
   }
 
   if (originHost !== host) {
-    throw new ForbiddenError("Yêu cầu chéo miền (Cross-Origin) không được phép.");
+    throw new ForbiddenError("Cross-origin state-changing requests are not permitted.");
   }
 }

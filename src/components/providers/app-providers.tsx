@@ -23,8 +23,8 @@ interface AppSessionContextValue {
 
 const AppSessionContext = createContext<AppSessionContextValue | null>(null);
 
-const LOCAL_PHOTOGRAPHER_MODE_KEY = "goku_photographer_mode";
-const LOCAL_PHOTOGRAPHER_EVENT = "goku:photographer-mode";
+const LOCAL_PHOTOGRAPHER_MODE_KEY = "naut_photographer_mode";
+const LOCAL_PHOTOGRAPHER_EVENT = "naut:photographer-mode";
 
 function subscribeGuestPhotographerMode(onStoreChange: () => void): () => void {
   if (typeof window === "undefined") return () => {};
@@ -99,8 +99,8 @@ export function AppProviders({
       if (!user) {
         toast.success(
           target
-            ? "Đã bật hiển thị thông tin nhiếp ảnh gia."
-            : "Đã ẩn thông tin nhiếp ảnh gia (Chế độ tối giản thuần khiết).",
+            ? "Photographer attribution enabled."
+            : "Photographer attribution hidden (pure minimalist view).",
         );
         return;
       }
@@ -121,12 +121,12 @@ export function AppProviders({
         setUserState(data.user);
         toast.success(
           target
-            ? "Đã bật hiển thị thông tin nhiếp ảnh gia."
-            : "Đã ẩn thông tin nhiếp ảnh gia.",
+            ? "Photographer attribution enabled."
+            : "Photographer attribution hidden.",
         );
       } catch {
         setUserState(prevUser);
-        toast.error("Không thể lưu cài đặt hiển thị nhiếp ảnh gia.");
+        toast.error("Could not save photographer display preference.");
       }
     },
     [showPhotographerInfo, user],
@@ -136,11 +136,11 @@ export function AppProviders({
     try {
       await fetch("/api/auth/logout", { method: "POST" });
       setUserState(null);
-      toast.success("Đã đăng xuất.");
+      toast.success("Signed out.");
       router.push("/");
       router.refresh();
     } catch {
-      toast.error("Không thể đăng xuất, vui lòng thử lại.");
+      toast.error("Unable to sign out. Please try again.");
     }
   }, [router]);
 

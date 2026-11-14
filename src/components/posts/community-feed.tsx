@@ -73,7 +73,7 @@ export function CommunityPostsFeed({
 
   async function handleToggleLike(postId: string) {
     if (!user) {
-      toast.info("Vui lòng đăng nhập để thả tim bài viết.");
+      toast.info("Please sign in to send an anonymous heart.");
       router.push("/login");
       return;
     }
@@ -90,8 +90,12 @@ export function CommunityPostsFeed({
         likedByMe?: boolean;
         error?: string;
       };
-      if (!res.ok || data.likesCount === undefined || data.likedByMe === undefined) {
-        throw new Error(data.error ?? "Không thể cập nhật lượt thích.");
+      if (
+        !res.ok ||
+        data.likesCount === undefined ||
+        data.likedByMe === undefined
+      ) {
+        throw new Error(data.error ?? "Unable to update heart count.");
       }
 
       setPosts((prev) =>
@@ -106,7 +110,7 @@ export function CommunityPostsFeed({
         ),
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Đã xảy ra lỗi.");
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setLikingIds((prev) => {
         const next = new Set(prev);
@@ -119,9 +123,10 @@ export function CommunityPostsFeed({
   if (posts.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-border py-20 text-center space-y-2">
-        <p className="text-sm font-medium">Chưa có bài viết công khai nào</p>
+        <p className="text-sm font-medium">No public stories yet</p>
         <p className="text-xs text-muted-foreground">
-          Hãy lưu một hình ảnh bạn yêu thích và chia sẻ bài viết đầu tiên ở chế độ Public.
+          Save an inspiring frame and share the first Public story with the
+          community.
         </p>
       </div>
     );
@@ -152,7 +157,7 @@ export function CommunityPostsFeed({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={post.image.imageUrl}
-                  alt={post.image.description ?? "Hình ảnh bài viết"}
+                  alt={post.image.description ?? "Story photograph"}
                   loading="lazy"
                   className="h-full w-full object-cover"
                 />
@@ -161,7 +166,7 @@ export function CommunityPostsFeed({
               <div className="p-4 space-y-3.5">
                 {showPhotographerInfo && post.image.photographerName && (
                   <div className="text-[11px] text-muted-foreground">
-                    Ảnh bởi{" "}
+                    Photo by{" "}
                     {photogLink ? (
                       <Link
                         href={photogLink}
@@ -200,9 +205,9 @@ export function CommunityPostsFeed({
                     type="button"
                     disabled={isLiking}
                     onClick={() => void handleToggleLike(post.id)}
-                    aria-label="Thả tim bài viết"
+                    aria-label="Send anonymous heart"
                     className={cn(
-                      "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors cursor-pointer",
+                      "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-all active:scale-95 cursor-pointer",
                       post.likedByMe
                         ? "border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400"
                         : "border-border text-muted-foreground hover:text-foreground hover:bg-accent",
@@ -230,7 +235,7 @@ export function CommunityPostsFeed({
         {loading && (
           <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="size-4 animate-spin" />
-            <span>Đang tải thêm bài viết...</span>
+            <span>Loading more stories...</span>
           </div>
         )}
       </div>

@@ -14,8 +14,8 @@ import {
 // Zero-PII strict schema: rejects any unexpected fields (email, role, etc.)
 const registerSchema = z
   .object({
-    username: z.string().min(3, "Tên đăng nhập tối thiểu 3 ký tự").max(32),
-    password: z.string().min(8, "Mật khẩu tối thiểu 8 ký tự").max(128),
+    username: z.string().min(3, "Username must be at least 3 characters.").max(32),
+    password: z.string().min(8, "Password must be at least 8 characters.").max(128),
   })
   .strict();
 

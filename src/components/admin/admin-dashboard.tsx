@@ -67,9 +67,9 @@ export function AdminConsoleDashboard({
         const d = (await likesRes.json()) as { logs: LikeAuditEntry[] };
         setLikeLogs(d.logs);
       }
-      toast.success("Đã làm mới dữ liệu quản trị.");
+      toast.success("Admin telemetry refreshed.");
     } catch {
-      toast.error("Không thể làm mới dữ liệu.");
+      toast.error("Unable to refresh admin telemetry.");
     } finally {
       setRefreshing(false);
     }
@@ -87,7 +87,7 @@ export function AdminConsoleDashboard({
         setUsers(d.users);
       }
     } catch {
-      toast.error("Không thể tìm kiếm người dùng.");
+      toast.error("Unable to search users.");
     }
   }
 
@@ -106,15 +106,15 @@ export function AdminConsoleDashboard({
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
-        throw new Error(data.error ?? "Không thể cập nhật người dùng.");
+        throw new Error(data.error ?? "Unable to update user.");
       }
 
       setUsers((prev) =>
         prev.map((u) => (u.id === target.id ? { ...u, ...patch } : u)),
       );
-      toast.success(`Đã cập nhật tài khoản @${target.username}`);
+      toast.success(`Updated @${target.username}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Đã xảy ra lỗi.");
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setBusyUserId(null);
     }
@@ -130,14 +130,14 @@ export function AdminConsoleDashboard({
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
-        throw new Error(data.error ?? "Không thể xóa người dùng.");
+        throw new Error(data.error ?? "Unable to delete user.");
       }
       setUsers((prev) => prev.filter((u) => u.id !== target.id));
       toast.success(
-        `Đã xóa tài khoản @${target.username} và dọn sạch dữ liệu liên quan.`,
+        `Deleted @${target.username} and reclaimed all associated resources.`,
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Đã xảy ra lỗi.");
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setBusyUserId(null);
     }
@@ -154,9 +154,9 @@ export function AdminConsoleDashboard({
         <div className="flex flex-wrap sm:inline-flex max-w-full gap-1 rounded-lg border border-border p-1 bg-card">
           {(
             [
-              { id: "overview", label: "Thống kê & Worker" },
-              { id: "users", label: `Người dùng (${users.length})` },
-              { id: "likes", label: `Nhật ký Thả tim (${likeLogs.length})` },
+              { id: "overview", label: "Overview & Worker" },
+              { id: "users", label: `Users (${users.length})` },
+              { id: "likes", label: `Heart Audit Log (${likeLogs.length})` },
             ] as const
           ).map((t) => (
             <button
@@ -164,7 +164,7 @@ export function AdminConsoleDashboard({
               type="button"
               onClick={() => setActiveTab(t.id)}
               className={cn(
-                "inline-flex min-h-9 items-center rounded-md px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
+                "inline-flex min-h-9 items-center rounded-md px-3 py-1.5 text-xs font-medium transition-all active:scale-95 cursor-pointer",
                 activeTab === t.id
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground",
@@ -182,7 +182,7 @@ export function AdminConsoleDashboard({
           onClick={() => void refreshAll()}
         >
           <RefreshCw className={cn("size-3.5", refreshing && "animate-spin")} />
-          Làm mới
+          Refresh
         </Button>
       </div>
 
@@ -191,27 +191,27 @@ export function AdminConsoleDashboard({
           {/* KPI Grid */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="rounded-xl border border-border bg-card p-4 space-y-1">
-              <p className="text-xs text-muted-foreground">Tổng người dùng</p>
+              <p className="text-xs text-muted-foreground">Total Users</p>
               <p className="text-2xl font-semibold tabular-nums">
                 {stats.totalUsers}
               </p>
               <p className="text-[11px] text-muted-foreground">
-                {stats.activeUsers} hoạt động · {stats.lockedUsers} bị khóa
+                {stats.activeUsers} active · {stats.lockedUsers} locked
               </p>
             </div>
 
             <div className="rounded-xl border border-border bg-card p-4 space-y-1">
-              <p className="text-xs text-muted-foreground">Tổng lượt lưu hình</p>
+              <p className="text-xs text-muted-foreground">Saved Frames</p>
               <p className="text-2xl font-semibold tabular-nums">
                 {stats.totalSavedImages}
               </p>
               <p className="text-[11px] text-muted-foreground">
-                Đã kích hoạt download event
+                Download events queued safely
               </p>
             </div>
 
             <div className="rounded-xl border border-border bg-card p-4 space-y-1">
-              <p className="text-xs text-muted-foreground">Tổng bài viết</p>
+              <p className="text-xs text-muted-foreground">Total Stories</p>
               <p className="text-2xl font-semibold tabular-nums">
                 {stats.totalPosts}
               </p>
@@ -222,13 +222,13 @@ export function AdminConsoleDashboard({
 
             <div className="rounded-xl border border-border bg-card p-4 space-y-1">
               <p className="text-xs text-muted-foreground">
-                Tổng lượt thả tim (Active)
+                Active Hearts
               </p>
               <p className="text-2xl font-semibold tabular-nums">
                 {stats.totalLikes}
               </p>
               <p className="text-[11px] text-muted-foreground">
-                Ẩn danh với user, ghi log Admin
+                Anonymous to users, audited for Admin
               </p>
             </div>
           </div>
@@ -239,20 +239,20 @@ export function AdminConsoleDashboard({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h2 className="text-sm font-semibold">
-                    Hoạt động 7 ngày gần nhất
+                    Last 7 Days Activity
                   </h2>
                   <p className="text-xs text-muted-foreground">
-                    So sánh lượt lưu hình ảnh và lượt đăng bài viết mỗi ngày
+                    Daily saved frames vs. published stories
                   </p>
                 </div>
                 <div className="flex items-center gap-3 text-[11px]">
                   <span className="inline-flex items-center gap-1.5">
                     <span className="size-2.5 rounded-full bg-primary" />
-                    Lưu ảnh
+                    Saved
                   </span>
                   <span className="inline-flex items-center gap-1.5">
                     <span className="size-2.5 rounded-full bg-muted-foreground/50" />
-                    Bài viết
+                    Stories
                   </span>
                 </div>
               </div>
@@ -274,12 +274,12 @@ export function AdminConsoleDashboard({
                       <div className="flex items-end gap-1 w-full justify-center h-32">
                         <div
                           style={{ height: `${Math.max(savePct, 4)}%` }}
-                          title={`Lưu ảnh: ${day.savedCount}`}
+                          title={`Saved: ${day.savedCount}`}
                           className="w-2.5 sm:w-3 rounded-t bg-primary transition-all"
                         />
                         <div
                           style={{ height: `${Math.max(postPct, 4)}%` }}
-                          title={`Bài viết: ${day.postCount}`}
+                          title={`Stories: ${day.postCount}`}
                           className="w-2.5 sm:w-3 rounded-t bg-muted-foreground/45 transition-all"
                         />
                       </div>
@@ -312,7 +312,7 @@ export function AdminConsoleDashboard({
               <div className="space-y-2">
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">
-                    Ngân sách khả dụng trong giờ
+                    Hourly budget remaining
                   </span>
                   <span className="font-semibold tabular-nums">
                     {stats.quota.remainingQuota} / {stats.quota.limitQuota} req
@@ -334,7 +334,7 @@ export function AdminConsoleDashboard({
                   />
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Cửa sổ kế tiếp làm mới lúc:{" "}
+                  Next window reset:{" "}
                   {formatMinimalDateTime(stats.quota.windowResetAt)}
                 </p>
               </div>
@@ -345,7 +345,7 @@ export function AdminConsoleDashboard({
                     {stats.quota.cachedImagesCount}
                   </p>
                   <p className="text-[10px] text-muted-foreground">
-                    Ảnh trong Pool
+                    Pool Frames
                   </p>
                 </div>
                 <div>
@@ -353,7 +353,7 @@ export function AdminConsoleDashboard({
                     {stats.quota.cachedPhotographersCount}
                   </p>
                   <p className="text-[10px] text-muted-foreground">
-                    Hồ sơ Tác giả
+                    Author Profiles
                   </p>
                 </div>
                 <div>
@@ -361,7 +361,7 @@ export function AdminConsoleDashboard({
                     {stats.quota.pendingJobsCount}
                   </p>
                   <p className="text-[10px] text-muted-foreground">
-                    Job Hàng đợi
+                    Queued Jobs
                   </p>
                 </div>
               </div>
@@ -381,12 +381,12 @@ export function AdminConsoleDashboard({
               <Input
                 value={userSearch}
                 onChange={(e) => setUserSearch(e.target.value)}
-                placeholder="Tìm theo username..."
+                placeholder="Filter by username..."
                 className="pl-8 text-xs"
               />
             </div>
             <Button type="submit" variant="outline" size="sm">
-              Lọc
+              Filter
             </Button>
           </form>
 
@@ -394,15 +394,15 @@ export function AdminConsoleDashboard({
             <table className="w-full text-left text-xs">
               <thead className="border-b border-border bg-secondary/40 text-muted-foreground">
                 <tr>
-                  <th className="px-4 py-3 font-medium">Người dùng</th>
-                  <th className="px-4 py-3 font-medium">Vai trò</th>
-                  <th className="px-4 py-3 font-medium">Trạng thái</th>
-                  <th className="px-4 py-3 font-medium text-right">Ảnh lưu</th>
+                  <th className="px-4 py-3 font-medium">User</th>
+                  <th className="px-4 py-3 font-medium">Role</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium text-right">Saved</th>
                   <th className="px-4 py-3 font-medium text-right">
-                    Bài viết (Pub/Priv)
+                    Stories (Pub/Priv)
                   </th>
-                  <th className="px-4 py-3 font-medium">Ngày tạo</th>
-                  <th className="px-4 py-3 font-medium text-right">Thao tác</th>
+                  <th className="px-4 py-3 font-medium">Joined</th>
+                  <th className="px-4 py-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
@@ -420,9 +420,7 @@ export function AdminConsoleDashboard({
                             size="xs"
                           />
                           <span className="font-medium">@{u.username}</span>
-                          {isSelf && (
-                            <Badge variant="outline">Bạn</Badge>
-                          )}
+                          {isSelf && <Badge variant="outline">You</Badge>}
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -436,7 +434,7 @@ export function AdminConsoleDashboard({
                         <Badge
                           variant={u.isActive ? "outline" : "destructive"}
                         >
-                          {u.isActive ? "Hoạt động" : "Đã khóa"}
+                          {u.isActive ? "Active" : "Locked"}
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums font-medium">
@@ -460,8 +458,8 @@ export function AdminConsoleDashboard({
                             disabled={isSelf || isBusy}
                             title={
                               u.role === "ADMIN"
-                                ? "Chuyển thành USER"
-                                : "Cấp quyền ADMIN"
+                                ? "Demote to USER"
+                                : "Promote to ADMIN"
                             }
                             onClick={() =>
                               void handlePatchUser(u, {
@@ -470,7 +468,7 @@ export function AdminConsoleDashboard({
                             }
                           >
                             <Shield className="size-3.5" />
-                            {u.role === "ADMIN" ? "Hạ USER" : "Cấp ADMIN"}
+                            {u.role === "ADMIN" ? "Make USER" : "Make ADMIN"}
                           </Button>
 
                           <Button
@@ -487,12 +485,12 @@ export function AdminConsoleDashboard({
                             {u.isActive ? (
                               <>
                                 <Lock className="size-3.5" />
-                                Khóa
+                                Lock
                               </>
                             ) : (
                               <>
                                 <Unlock className="size-3.5" />
-                                Mở
+                                Unlock
                               </>
                             )}
                           </Button>
@@ -504,7 +502,7 @@ export function AdminConsoleDashboard({
                             disabled={isSelf || isBusy}
                             className="text-destructive hover:text-destructive"
                             onClick={() => void handleDeleteUser(u)}
-                            title="Xóa người dùng và giải phóng slot Cloudinary"
+                            title="Delete user and reclaim Cloudinary avatar slot"
                           >
                             <Trash2 className="size-3.5" />
                           </Button>
@@ -522,18 +520,19 @@ export function AdminConsoleDashboard({
       {activeTab === "likes" && (
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            Nhật ký độc quyền dành cho Admin: Người dùng thông thường (kể cả tác giả bài viết) không bao giờ xem được danh sách này.
+            Admin-exclusive audit log: standard users (including post authors)
+            never have access to liker identities.
           </p>
 
           <div className="overflow-x-auto rounded-xl border border-border bg-card">
             <table className="w-full text-left text-xs">
               <thead className="border-b border-border bg-secondary/40 text-muted-foreground">
                 <tr>
-                  <th className="px-4 py-3 font-medium">Thời gian</th>
-                  <th className="px-4 py-3 font-medium">Người thực hiện</th>
-                  <th className="px-4 py-3 font-medium">Hành động</th>
-                  <th className="px-4 py-3 font-medium">Tác giả bài viết</th>
-                  <th className="px-4 py-3 font-medium">Trích đoạn bài viết</th>
+                  <th className="px-4 py-3 font-medium">Timestamp</th>
+                  <th className="px-4 py-3 font-medium">Actor</th>
+                  <th className="px-4 py-3 font-medium">Action</th>
+                  <th className="px-4 py-3 font-medium">Story Author</th>
+                  <th className="px-4 py-3 font-medium">Story Excerpt</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
@@ -543,7 +542,7 @@ export function AdminConsoleDashboard({
                       colSpan={5}
                       className="px-4 py-10 text-center text-muted-foreground"
                     >
-                      Chưa có sự kiện thả tim nào được ghi nhận.
+                      No heart events recorded yet.
                     </td>
                   </tr>
                 ) : (
@@ -562,7 +561,7 @@ export function AdminConsoleDashboard({
                           }
                         >
                           <Heart className="mr-1 size-3" />
-                          {log.action === "LIKE" ? " Đã thích" : " Đã bỏ thích"}
+                          {log.action === "LIKE" ? " Liked" : " Unliked"}
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">

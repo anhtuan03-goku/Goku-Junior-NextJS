@@ -7,7 +7,7 @@ export function normalizeAndValidateUsername(raw: string): string {
   const normalized = raw.trim().toLowerCase();
   if (!USERNAME_REGEX.test(normalized)) {
     throw new ValidationError(
-      "Tên đăng nhập phải từ 3–32 ký tự, chỉ gồm chữ thường (a-z), số (0-9) và các ký tự _ . -",
+      "Username must be 3–32 characters using only lowercase letters (a-z), numbers (0-9), and _ . -",
     );
   }
   return normalized;
@@ -15,7 +15,7 @@ export function normalizeAndValidateUsername(raw: string): string {
 
 export function validatePassword(raw: string): string {
   if (typeof raw !== "string" || raw.length < 8 || raw.length > 128) {
-    throw new ValidationError("Mật khẩu phải có độ dài từ 8 đến 128 ký tự.");
+    throw new ValidationError("Password must be between 8 and 128 characters.");
   }
   return raw;
 }

@@ -151,7 +151,7 @@ export class UnsplashImageProvider implements IImageProvider {
   }) {
     const env = options?.accessKey ? null : getEnv();
     this.accessKey = options?.accessKey ?? env!.UNSPLASH_ACCESS_KEY;
-    this.appName = options?.appName ?? env?.UNSPLASH_APP_NAME ?? "goku_junior_nextjs";
+    this.appName = options?.appName ?? env?.UNSPLASH_APP_NAME ?? "naut_frame";
     this.fetchImpl = options?.fetchImpl ?? fetch;
   }
 

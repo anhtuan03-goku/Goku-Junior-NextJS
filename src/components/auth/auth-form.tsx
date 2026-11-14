@@ -3,12 +3,24 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Loader2, ShieldCheck } from "lucide-react";
+import { Check, Eye, EyeOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { PolarBearMascot } from "@/components/auth/polar-bear-mascot";
 import { useAppSession } from "@/components/providers/app-providers";
+import { GeneratedBrandIcon } from "@/components/ui/brand-icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { SafeUserDTO } from "@/domain/entities/models";
+import { cn } from "@/lib/utils";
+
+type FocusedField = "username" | "password" | "confirmPassword" | null;
+
+function computeCaretLookX(input: HTMLInputElement): number {
+  const caret = input.selectionStart ?? input.value.length;
+  // Smoothly sweep from left (-0.9) to right (+0.9) across ~24 characters
+  const progress = Math.min(Math.max(caret / 24, 0), 1);
+  return -0.88 + progress * 1.76;
+}
 
 export function MinimalAuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
@@ -16,14 +28,61 @@ export function MinimalAuthForm({ mode }: { mode: "login" | "register" }) {
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // Polar bear tracking state
+  const [focusedField, setFocusedField] = useState<FocusedField>(null);
+  const [caretLookX, setCaretLookX] = useState<number>(0);
+  const [hasError, setHasError] = useState(false);
+
   const isRegister = mode === "register";
+  const isCoveringEyes =
+    showPassword || (isRegister && showConfirmPassword);
+
+  const passwordsMatch =
+    isRegister &&
+    password.length >= 8 &&
+    confirmPassword.length > 0 &&
+    password === confirmPassword;
+
+  const confirmMismatch =
+    isRegister && confirmPassword.length > 0 && password !== confirmPassword;
+
+  const focusedLookY =
+    focusedField === "username"
+      ? 0.55
+      : focusedField === "password"
+        ? 0.72
+        : focusedField === "confirmPassword"
+          ? 0.88
+          : null;
+
+  function triggerErrorFeedback() {
+    setHasError(true);
+    window.setTimeout(() => setHasError(false), 500);
+  }
+
+  function syncCaretFromEvent(
+    field: Exclude<FocusedField, null>,
+    el: HTMLInputElement,
+  ) {
+    setFocusedField(field);
+    setCaretLookX(computeCaretLookX(el));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting) return;
+
+    if (isRegister && password !== confirmPassword) {
+      triggerErrorFeedback();
+      toast.error("Passwords do not match. Please double-check your confirmation.");
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -43,45 +102,85 @@ export function MinimalAuthForm({ mode }: { mode: "login" | "register" }) {
       };
 
       if (!res.ok || !data.user) {
-        throw new Error(data.error ?? "Không thể xác thực tài khoản.");
+        throw new Error(data.error ?? "Unable to authenticate your account.");
       }
 
       setUser(data.user);
       toast.success(
         isRegister
-          ? `Chào mừng @${data.user.username}! Tài khoản của bạn đã sẵn sàng.`
-          : `Chào mừng trở lại, @${data.user.username}!`,
+          ? `Welcome @${data.user.username}! Your account is ready.`
+          : `Welcome back, @${data.user.username}!`,
       );
       router.push("/");
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Đã xảy ra lỗi.");
+      triggerErrorFeedback();
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="mx-auto flex min-h-[72vh] max-w-sm flex-col justify-center py-8">
-      <div className="space-y-6 rounded-xl border border-border bg-card p-6 sm:p-7">
-        <div className="space-y-1.5">
+    <div className="mx-auto flex min-h-[74vh] max-w-sm flex-col justify-center py-6 sm:py-8">
+      <div className="space-y-5 rounded-2xl border border-border bg-card p-6 sm:p-7 shadow-xs">
+        {/* Segmented Auth Switcher with Generated Icons & Clear Active State */}
+        <div
+          role="tablist"
+          aria-label="Authentication mode"
+          className="grid grid-cols-2 gap-1 rounded-xl border border-border/80 bg-secondary/60 p-1"
+        >
+          <Link
+            href="/login"
+            role="tab"
+            aria-selected={!isRegister}
+            className={cn(
+              "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150 active:scale-[0.96]",
+              !isRegister
+                ? "bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/20"
+                : "text-muted-foreground hover:text-foreground hover:bg-background/60",
+            )}
+          >
+            <GeneratedBrandIcon name="login" className="size-3.5" />
+            <span>Sign in</span>
+          </Link>
+          <Link
+            href="/register"
+            role="tab"
+            aria-selected={isRegister}
+            className={cn(
+              "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150 active:scale-[0.96]",
+              isRegister
+                ? "bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/20"
+                : "text-muted-foreground hover:text-foreground hover:bg-background/60",
+            )}
+          >
+            <GeneratedBrandIcon name="register" className="size-3.5" />
+            <span>Sign up</span>
+          </Link>
+        </div>
+
+        {/* Interactive White Polar Bear Mascot */}
+        <div className="pt-1">
+          <PolarBearMascot
+            inputLookX={focusedField ? caretLookX : null}
+            inputLookY={focusedLookY}
+            isCoveringEyes={isCoveringEyes}
+            isInputFocused={focusedField !== null}
+            isHappy={passwordsMatch || submitting}
+            hasError={hasError || confirmMismatch}
+          />
+        </div>
+
+        <div className="space-y-1 text-center">
           <h1 className="text-lg font-semibold tracking-tight">
-            {isRegister ? "Tạo tài khoản tối giản" : "Đăng nhập"}
+            {isRegister ? "Create your naut.frame account" : "Welcome back"}
           </h1>
           <p className="text-xs text-muted-foreground">
             {isRegister
-              ? "Chỉ cần một tên đăng nhập duy nhất và mật khẩu."
-              : "Truy cập kho hình ảnh đã lưu và nhật ký cá nhân của bạn."}
+              ? "Choose a unique username and password to start collecting."
+              : "Sign in to access your saved frames and visual journal."}
           </p>
-        </div>
-
-        {/* Zero-PII Policy Pledge */}
-        <div className="rounded-lg border border-border/80 bg-secondary/50 p-3 text-[11px] leading-relaxed text-muted-foreground">
-          <div className="mb-1 flex items-center gap-1.5 font-medium text-foreground">
-            <ShieldCheck className="size-3.5 shrink-0" />
-            <span>Cam kết Quyền riêng tư (Zero-PII)</span>
-          </div>
-          Chúng tôi <strong>không thu thập email, số điện thoại hay bất kỳ thông tin cá nhân nào</strong> cho bất cứ mục đích gì. Mật khẩu của bạn được băm một chiều (hash) an toàn trước khi lưu vào cơ sở dữ liệu.
         </div>
 
         <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
@@ -90,7 +189,7 @@ export function MinimalAuthForm({ mode }: { mode: "login" | "register" }) {
               htmlFor="username"
               className="block text-xs font-medium text-foreground"
             >
-              Tên đăng nhập
+              Username
             </label>
             <Input
               id="username"
@@ -100,8 +199,17 @@ export function MinimalAuthForm({ mode }: { mode: "login" | "register" }) {
               minLength={3}
               maxLength={32}
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="vd: goku_minimal"
+              onFocus={(e) => syncCaretFromEvent("username", e.currentTarget)}
+              onBlur={() =>
+                setFocusedField((cur) => (cur === "username" ? null : cur))
+              }
+              onClick={(e) => syncCaretFromEvent("username", e.currentTarget)}
+              onKeyUp={(e) => syncCaretFromEvent("username", e.currentTarget)}
+              onChange={(e) => {
+                setUsername(e.target.value);
+                syncCaretFromEvent("username", e.currentTarget);
+              }}
+              placeholder="e.g. naut_minimal"
             />
           </div>
 
@@ -110,7 +218,7 @@ export function MinimalAuthForm({ mode }: { mode: "login" | "register" }) {
               htmlFor="password"
               className="block text-xs font-medium text-foreground"
             >
-              Mật khẩu
+              Password
             </label>
             <div className="relative">
               <Input
@@ -122,15 +230,28 @@ export function MinimalAuthForm({ mode }: { mode: "login" | "register" }) {
                 minLength={isRegister ? 8 : 1}
                 maxLength={128}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={isRegister ? "Tối thiểu 8 ký tự" : "••••••••"}
+                onFocus={(e) => syncCaretFromEvent("password", e.currentTarget)}
+                onBlur={() =>
+                  setFocusedField((cur) => (cur === "password" ? null : cur))
+                }
+                onClick={(e) => syncCaretFromEvent("password", e.currentTarget)}
+                onKeyUp={(e) => syncCaretFromEvent("password", e.currentTarget)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  syncCaretFromEvent("password", e.currentTarget);
+                }}
+                placeholder={isRegister ? "At least 8 characters" : "••••••••"}
                 className="pr-9"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((prev) => !prev)}
-                className="absolute top-1/2 right-0.5 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground cursor-pointer"
-                aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                className="absolute top-1/2 right-0.5 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground active:scale-95 cursor-pointer"
+                aria-label={
+                  showPassword
+                    ? "Hide password characters"
+                    : "Show password characters"
+                }
               >
                 {showPassword ? (
                   <EyeOff className="size-4" />
@@ -141,35 +262,99 @@ export function MinimalAuthForm({ mode }: { mode: "login" | "register" }) {
             </div>
           </div>
 
-          <Button type="submit" className="w-full" disabled={submitting}>
-            {submitting && <Loader2 className="size-4 animate-spin" />}
-            {isRegister ? "Đăng ký ngay" : "Đăng nhập"}
+          {isRegister && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="confirm-password"
+                  className="block text-xs font-medium text-foreground"
+                >
+                  Confirm password
+                </label>
+                {passwordsMatch && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                    <Check className="size-3" />
+                    Matched
+                  </span>
+                )}
+              </div>
+              <div className="relative">
+                <Input
+                  id="confirm-password"
+                  name="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  required
+                  minLength={8}
+                  maxLength={128}
+                  value={confirmPassword}
+                  aria-invalid={confirmMismatch || undefined}
+                  onFocus={(e) =>
+                    syncCaretFromEvent("confirmPassword", e.currentTarget)
+                  }
+                  onBlur={() =>
+                    setFocusedField((cur) =>
+                      cur === "confirmPassword" ? null : cur,
+                    )
+                  }
+                  onClick={(e) =>
+                    syncCaretFromEvent("confirmPassword", e.currentTarget)
+                  }
+                  onKeyUp={(e) =>
+                    syncCaretFromEvent("confirmPassword", e.currentTarget)
+                  }
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    syncCaretFromEvent("confirmPassword", e.currentTarget);
+                  }}
+                  placeholder="Re-enter your password"
+                  className={cn(
+                    "pr-9",
+                    confirmMismatch &&
+                      "border-destructive focus-visible:ring-destructive/30",
+                  )}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  className="absolute top-1/2 right-0.5 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground active:scale-95 cursor-pointer"
+                  aria-label={
+                    showConfirmPassword
+                      ? "Hide confirm password characters"
+                      : "Show confirm password characters"
+                  }
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </button>
+              </div>
+              {confirmMismatch && (
+                <p className="text-[11px] text-destructive">
+                  Confirmation password does not match yet.
+                </p>
+              )}
+            </div>
+          )}
+
+          <Button
+            type="submit"
+            className="w-full h-10 font-medium shadow-sm active:scale-[0.97]"
+            disabled={submitting || confirmMismatch}
+          >
+            {submitting ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <GeneratedBrandIcon
+                name={isRegister ? "register" : "login"}
+                className="size-4"
+              />
+            )}
+            <span>{isRegister ? "Create account" : "Sign in"}</span>
           </Button>
         </form>
-
-        <p className="text-center text-xs text-muted-foreground">
-          {isRegister ? (
-            <>
-              Đã có tài khoản?{" "}
-              <Link
-                href="/login"
-                className="font-medium text-foreground underline underline-offset-4"
-              >
-                Đăng nhập
-              </Link>
-            </>
-          ) : (
-            <>
-              Chưa có tài khoản?{" "}
-              <Link
-                href="/register"
-                className="font-medium text-foreground underline underline-offset-4"
-              >
-                Đăng ký mới
-              </Link>
-            </>
-          )}
-        </p>
       </div>
     </div>
   );

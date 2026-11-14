@@ -129,7 +129,7 @@ export class PostgresPostRepository implements IPostRepository {
 
     const created = await this.findViewById(inserted[0]!.id, input.authorId);
     if (!created) {
-      throw new NotFoundError("Không thể tải bài viết vừa tạo.");
+      throw new NotFoundError("Unable to load newly created story.");
     }
     return created;
   }
@@ -147,7 +147,7 @@ export class PostgresPostRepository implements IPostRepository {
 
     await db.update(posts).set(updates).where(eq(posts.id, postId));
     const view = await this.findViewById(postId, viewerUserId);
-    if (!view) throw new NotFoundError("Không tìm thấy bài viết.");
+    if (!view) throw new NotFoundError("Story not found.");
     return view;
   }
 
@@ -246,7 +246,7 @@ export class PostgresPostRepository implements IPostRepository {
         sql`SELECT id FROM ${posts} WHERE ${posts.id} = ${params.postId} FOR UPDATE`,
       );
       if (locked.rowCount === 0) {
-        throw new NotFoundError("Không tìm thấy bài viết.");
+        throw new NotFoundError("Story not found.");
       }
 
       const deleted = await tx

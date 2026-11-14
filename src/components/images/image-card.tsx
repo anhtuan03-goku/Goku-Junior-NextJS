@@ -3,7 +3,13 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bookmark, Check, ExternalLink, PenLine, User as UserIcon } from "lucide-react";
+import {
+  Bookmark,
+  Check,
+  ExternalLink,
+  PenLine,
+  User as UserIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useAppSession } from "@/components/providers/app-providers";
 import { Button } from "@/components/ui/button";
@@ -59,7 +65,7 @@ export function MinimalImageCard({
   async function handleToggleSave(e: React.MouseEvent) {
     e.stopPropagation();
     if (!user) {
-      toast.info("Vui lòng đăng nhập để lưu hình ảnh yêu thích.");
+      toast.info("Please sign in to save frames to your collection.");
       router.push("/login");
       return;
     }
@@ -71,12 +77,12 @@ export function MinimalImageCard({
         const res = await fetch(`/api/saved/${savedId}`, { method: "DELETE" });
         if (!res.ok) {
           const err = (await res.json()) as { error?: string };
-          throw new Error(err.error ?? "Không thể bỏ lưu ảnh.");
+          throw new Error(err.error ?? "Unable to remove saved frame.");
         }
         setSaved(false);
         setSavedId(null);
         onSaveStateChange?.(itemKey, false, null);
-        toast.success("Đã bỏ lưu hình ảnh.");
+        toast.success("Removed from your saved frames.");
       } else {
         const res = await fetch("/api/saved", {
           method: "POST",
@@ -102,15 +108,15 @@ export function MinimalImageCard({
           error?: string;
         };
         if (!res.ok || !data.savedImage) {
-          throw new Error(data.error ?? "Không thể lưu hình ảnh.");
+          throw new Error(data.error ?? "Unable to save this frame.");
         }
         setSaved(true);
         setSavedId(data.savedImage.id);
         onSaveStateChange?.(itemKey, true, data.savedImage.id);
-        toast.success("Đã lưu vào bộ sưu tập của bạn.");
+        toast.success("Saved to your personal collection.");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Đã xảy ra lỗi.");
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setBusy(false);
     }
@@ -135,7 +141,7 @@ export function MinimalImageCard({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={item.thumbUrl}
-            alt={item.description ?? "Khung hình nghệ thuật"}
+            alt={item.description ?? "Curated minimalist photograph"}
             loading="lazy"
             decoding="async"
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.015]"
@@ -145,9 +151,9 @@ export function MinimalImageCard({
             type="button"
             disabled={busy}
             onClick={(e) => void handleToggleSave(e)}
-            aria-label={saved ? "Bỏ lưu ảnh" : "Lưu ảnh"}
+            aria-label={saved ? "Remove from saved frames" : "Save frame"}
             className={cn(
-              "absolute top-2.5 right-2.5 inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-xs font-medium backdrop-blur-md transition-all cursor-pointer",
+              "absolute top-2.5 right-2.5 inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-xs font-medium backdrop-blur-md transition-all active:scale-95 cursor-pointer",
               saved
                 ? "bg-primary text-primary-foreground opacity-100 shadow-sm"
                 : "bg-background/85 text-foreground opacity-95 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-background",
@@ -156,12 +162,12 @@ export function MinimalImageCard({
             {saved ? (
               <>
                 <Check className="size-3.5" />
-                <span>Đã lưu</span>
+                <span>Saved</span>
               </>
             ) : (
               <>
                 <Bookmark className="size-3.5" />
-                <span>Lưu</span>
+                <span>Save</span>
               </>
             )}
           </button>
@@ -200,9 +206,9 @@ export function MinimalImageCard({
               <Link
                 href={photographerHref}
                 className="text-[11px] text-muted-foreground hover:text-foreground shrink-0"
-                title="Xem hồ sơ nhiếp ảnh gia"
+                title="View photographer profile"
               >
-                Hồ sơ →
+                Profile →
               </Link>
             )}
           </div>
@@ -213,10 +219,10 @@ export function MinimalImageCard({
         <DialogContent className="max-w-3xl p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="font-medium text-sm truncate pr-6">
-              {item.description || "Khung hình tối giản"}
+              {item.description || "Minimalist frame"}
             </DialogTitle>
             <DialogDescription>
-              {item.width} × {item.height}px · Nguồn: {item.provider}
+              {item.width} × {item.height}px
             </DialogDescription>
           </DialogHeader>
 
@@ -227,7 +233,7 @@ export function MinimalImageCard({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={item.imageUrl}
-              alt={item.description ?? "Ảnh phóng to"}
+              alt={item.description ?? "Expanded frame preview"}
               className="max-h-[68vh] w-auto object-contain"
             />
           </div>
@@ -251,7 +257,7 @@ export function MinimalImageCard({
                         className="inline-flex items-center gap-1 underline underline-offset-4 text-foreground"
                       >
                         <UserIcon className="size-3" />
-                        Xem chi tiết tác giả
+                        Author profile
                       </Link>
                     )}
                     {item.photographer.profileUrl && (
@@ -269,7 +275,7 @@ export function MinimalImageCard({
               </div>
             ) : (
               <span className="text-xs text-muted-foreground">
-                Chế độ ẩn thông tin tác giả đang bật
+                Author attribution is currently hidden
               </span>
             )}
 
@@ -281,7 +287,7 @@ export function MinimalImageCard({
                     onClick={() => setOpenPreview(false)}
                   >
                     <PenLine className="size-3.5" />
-                    Viết bài viết
+                    Write post
                   </Link>
                 </Button>
               )}
@@ -294,12 +300,12 @@ export function MinimalImageCard({
                 {saved ? (
                   <>
                     <Check className="size-3.5" />
-                    Đã lưu
+                    Saved
                   </>
                 ) : (
                   <>
                     <Bookmark className="size-3.5" />
-                    Lưu hình này
+                    Save frame
                   </>
                 )}
               </Button>

@@ -34,7 +34,7 @@ export async function PATCH(request: Request) {
       parsed.username === undefined &&
       parsed.showPhotographerInfo === undefined
     ) {
-      throw new ValidationError("Không có thông tin hồ sơ cần cập nhật.");
+      throw new ValidationError("No profile fields provided to update.");
     }
 
     const container = getContainer();

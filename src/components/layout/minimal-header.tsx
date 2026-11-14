@@ -7,18 +7,24 @@ import { useTheme } from "next-themes";
 import {
   Bookmark,
   Camera,
-  Compass,
   LogOut,
   Moon,
   Settings,
   Shield,
-  Sparkles,
   Sun,
 } from "lucide-react";
 import { useAppSession } from "@/components/providers/app-providers";
+import { GeneratedBrandIcon } from "@/components/ui/brand-icon";
 import { Button } from "@/components/ui/button";
 import { UserAvatarCircle } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
+
+type NavItem = {
+  href: string;
+  label: string;
+  renderIcon: () => React.ReactNode;
+  show: boolean;
+};
 
 export function MinimalHeader() {
   const pathname = usePathname();
@@ -26,17 +32,37 @@ export function MinimalHeader() {
   const { user, showPhotographerInfo, togglePhotographerMode, logout } =
     useAppSession();
 
-  const navItems = [
-    { href: "/", label: "Khám phá", icon: Compass, show: true },
-    { href: "/community", label: "Cộng đồng", icon: Sparkles, show: true },
-    { href: "/saved", label: "Đã lưu", icon: Bookmark, show: Boolean(user) },
+  const navItems: NavItem[] = [
+    {
+      href: "/",
+      label: "Explore",
+      renderIcon: () => <GeneratedBrandIcon name="explore" className="size-4" />,
+      show: true,
+    },
+    {
+      href: "/community",
+      label: "Community",
+      renderIcon: () => (
+        <GeneratedBrandIcon name="community" className="size-4" />
+      ),
+      show: true,
+    },
+    {
+      href: "/saved",
+      label: "Saved",
+      renderIcon: () => <Bookmark className="size-3.5" />,
+      show: Boolean(user),
+    },
     {
       href: "/admin",
-      label: "Quản trị",
-      icon: Shield,
+      label: "Admin",
+      renderIcon: () => <Shield className="size-3.5" />,
       show: user?.role === "ADMIN",
     },
   ].filter((item) => item.show);
+
+  const isOnLogin = pathname === "/login";
+  const isOnRegister = pathname === "/register";
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border/80 bg-background/85 backdrop-blur-md">
@@ -44,13 +70,22 @@ export function MinimalHeader() {
         <div className="flex items-center gap-6">
           <Link
             href="/"
-            className="text-base font-semibold tracking-tighter select-none"
+            className="inline-flex items-center gap-2 text-base font-semibold tracking-tighter select-none transition-opacity hover:opacity-85 active:scale-[0.98]"
           >
-            goku<span className="text-muted-foreground">.frame</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/icons/frame-mark.png"
+              alt=""
+              aria-hidden="true"
+              className="size-5 rounded-[4px] object-contain"
+            />
+            <span>
+              naut<span className="text-muted-foreground">.frame</span>
+            </span>
           </Link>
 
           <nav
-            aria-label="Điều hướng chính"
+            aria-label="Primary navigation"
             className="hidden md:flex items-center gap-1"
           >
             {navItems.map((item) => {
@@ -62,14 +97,15 @@ export function MinimalHeader() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  aria-current={active ? "page" : undefined}
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                    "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all duration-150 active:scale-[0.96]",
                     active
-                      ? "bg-primary text-primary-foreground"
+                      ? "bg-primary text-primary-foreground shadow-xs"
                       : "text-muted-foreground hover:text-foreground hover:bg-accent",
                   )}
                 >
-                  <item.icon className="size-3.5" />
+                  {item.renderIcon()}
                   {item.label}
                 </Link>
               );
@@ -78,20 +114,42 @@ export function MinimalHeader() {
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Author attribution toggle switch (accessible role="switch", >=36px touch height) */}
           <button
             type="button"
-            onClick={() => void togglePhotographerMode()}
-            title="Bật / Tắt hiển thị thông tin nhiếp ảnh gia trên ảnh"
-            className={cn(
-              "inline-flex h-9 min-w-9 items-center justify-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium transition-colors cursor-pointer",
+            role="switch"
+            aria-checked={showPhotographerInfo}
+            aria-label="Toggle photographer attribution on frames"
+            title={
               showPhotographerInfo
-                ? "border-foreground/25 bg-secondary text-foreground"
-                : "border-border bg-transparent text-muted-foreground hover:text-foreground",
+                ? "Photographer credits: On (click to hide)"
+                : "Photographer credits: Off (click to show)"
+            }
+            onClick={() => void togglePhotographerMode()}
+            className={cn(
+              "group inline-flex h-9 items-center gap-2 rounded-full border px-2.5 text-xs font-medium transition-all duration-150 active:scale-[0.97] cursor-pointer select-none",
+              showPhotographerInfo
+                ? "border-foreground/25 bg-secondary/80 text-foreground"
+                : "border-border bg-background text-muted-foreground hover:text-foreground",
             )}
           >
-            <Camera className="size-4" />
-            <span className="hidden sm:inline">
-              Tác giả: {showPhotographerInfo ? "Bật" : "Tắt"}
+            <Camera className="size-3.5 shrink-0" />
+            <span className="hidden sm:inline text-[11px]">Author</span>
+            <span
+              aria-hidden="true"
+              className={cn(
+                "relative inline-flex h-4.5 w-8 shrink-0 items-center rounded-full p-0.5 transition-colors duration-200",
+                showPhotographerInfo
+                  ? "bg-primary"
+                  : "bg-muted-foreground/30",
+              )}
+            >
+              <span
+                className={cn(
+                  "block size-3.5 rounded-full bg-background shadow-xs transition-transform duration-200",
+                  showPhotographerInfo ? "translate-x-3.5" : "translate-x-0",
+                )}
+              />
             </span>
           </button>
 
@@ -100,7 +158,7 @@ export function MinimalHeader() {
             size="icon"
             className="size-9"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            aria-label="Chuyển giao diện Sáng / Tối"
+            aria-label="Toggle light or dark theme"
           >
             <Sun className="size-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
             <Moon className="absolute size-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
@@ -111,10 +169,12 @@ export function MinimalHeader() {
               <Link
                 href="/settings"
                 className={cn(
-                  "inline-flex h-9 items-center gap-2 rounded-full border border-border px-2.5 pr-3 text-xs font-medium transition-colors hover:bg-accent",
-                  pathname === "/settings" && "border-foreground",
+                  "inline-flex h-9 items-center gap-2 rounded-full border px-2.5 pr-3 text-xs font-medium transition-all duration-150 hover:bg-accent active:scale-[0.97]",
+                  pathname === "/settings"
+                    ? "border-foreground bg-secondary/70 shadow-xs"
+                    : "border-border",
                 )}
-                title="Quản lý hồ sơ cá nhân"
+                title="Profile settings"
               >
                 <UserAvatarCircle
                   username={user.username}
@@ -132,20 +192,43 @@ export function MinimalHeader() {
                 size="icon"
                 className="size-9 text-muted-foreground hover:text-foreground"
                 onClick={() => void logout()}
-                title="Đăng xuất"
-                aria-label="Đăng xuất"
+                title="Sign out"
+                aria-label="Sign out"
               >
                 <LogOut className="size-4" />
               </Button>
             </div>
           ) : (
             <div className="flex items-center gap-1.5">
-              <Button variant="ghost" size="default" className="px-3 text-xs" asChild>
-                <Link href="/login">Đăng nhập</Link>
-              </Button>
-              <Button size="default" className="px-3 text-xs" asChild>
-                <Link href="/register">Đăng ký</Link>
-              </Button>
+              <Link
+                href="/login"
+                aria-current={isOnLogin ? "page" : undefined}
+                className={cn(
+                  "inline-flex h-9 items-center justify-center gap-1.5 rounded-full border px-3 sm:px-3.5 text-xs font-medium transition-all duration-150 active:scale-[0.95] active:translate-y-[0.5px] select-none",
+                  isOnLogin
+                    ? "border-primary bg-primary text-primary-foreground shadow-sm ring-2 ring-primary/25"
+                    : "border-border bg-background text-foreground hover:bg-accent hover:border-foreground/30 active:bg-accent/90",
+                )}
+              >
+                <GeneratedBrandIcon name="login" className="size-3.5" />
+                <span>Sign in</span>
+              </Link>
+
+              <Link
+                href="/register"
+                aria-current={isOnRegister ? "page" : undefined}
+                className={cn(
+                  "inline-flex h-9 items-center justify-center gap-1.5 rounded-full border px-3 sm:px-3.5 text-xs font-medium transition-all duration-150 active:scale-[0.95] active:translate-y-[0.5px] select-none",
+                  isOnRegister
+                    ? "border-primary bg-primary text-primary-foreground shadow-sm ring-2 ring-primary/30"
+                    : isOnLogin
+                      ? "border-border bg-background text-muted-foreground hover:text-foreground hover:bg-accent"
+                      : "border-primary bg-primary text-primary-foreground shadow-xs hover:bg-primary/90 active:bg-primary/80",
+                )}
+              >
+                <GeneratedBrandIcon name="register" className="size-3.5" />
+                <span>Sign up</span>
+              </Link>
             </div>
           )}
         </div>
@@ -153,7 +236,7 @@ export function MinimalHeader() {
 
       {/* Mobile responsive navigation strip (375px safe, >=36px touch targets, zero horizontal overflow) */}
       <nav
-        aria-label="Điều hướng di động"
+        aria-label="Mobile navigation"
         className="flex md:hidden items-center justify-around border-t border-border/60 px-2 py-1 bg-background/95"
       >
         {navItems.map((item) => {
@@ -165,14 +248,15 @@ export function MinimalHeader() {
             <Link
               key={item.href}
               href={item.href}
+              aria-current={active ? "page" : undefined}
               className={cn(
-                "inline-flex min-h-9 items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-medium transition-colors",
+                "inline-flex min-h-9 items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-medium transition-all duration-150 active:scale-[0.96]",
                 active
-                  ? "bg-primary text-primary-foreground"
+                  ? "bg-primary text-primary-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <item.icon className="size-3.5" />
+              {item.renderIcon()}
               <span>{item.label}</span>
             </Link>
           );

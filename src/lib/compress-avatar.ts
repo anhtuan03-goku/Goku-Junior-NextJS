@@ -9,10 +9,10 @@ export async function compressAvatarToWebP(
   quality = 0.82,
 ): Promise<File> {
   if (!file.type.startsWith("image/")) {
-    throw new Error("Vui lòng chọn tệp hình ảnh hợp lệ (JPEG, PNG, WebP).");
+    throw new Error("Please select a valid image file (JPEG, PNG, or WebP).");
   }
   if (file.type === "image/svg+xml") {
-    throw new Error("Không hỗ trợ định dạng SVG vì lý do bảo mật.");
+    throw new Error("SVG files are not supported for security reasons.");
   }
 
   const bitmapUrl = URL.createObjectURL(file);
@@ -20,7 +20,7 @@ export async function compressAvatarToWebP(
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const el = new Image();
       el.onload = () => resolve(el);
-      el.onerror = () => reject(new Error("Không thể đọc tệp hình ảnh này."));
+      el.onerror = () => reject(new Error("Unable to decode the selected image."));
       el.src = bitmapUrl;
     });
 
@@ -35,7 +35,7 @@ export async function compressAvatarToWebP(
 
     const ctx = canvas.getContext("2d");
     if (!ctx) {
-      throw new Error("Trình duyệt không hỗ trợ nén ảnh Canvas.");
+      throw new Error("Your browser does not support Canvas image compression.");
     }
 
     ctx.imageSmoothingEnabled = true;
@@ -53,7 +53,7 @@ export async function compressAvatarToWebP(
           canvas.toBlob(
             (fallbackBlob) => {
               if (fallbackBlob) resolve(fallbackBlob);
-              else reject(new Error("Không thể nén ảnh đại diện."));
+              else reject(new Error("Failed to compress avatar image."));
             },
             "image/jpeg",
             quality,
