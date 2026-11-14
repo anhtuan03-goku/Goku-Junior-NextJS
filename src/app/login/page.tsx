@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 export default async function LoginPage() {
   const user = await getOptionalSessionUser();
   if (user) {
-    redirect("/");
+    redirect(user.role === "ADMIN" ? "/admin" : "/");
   }
   return <MinimalAuthForm mode="login" />;
 }

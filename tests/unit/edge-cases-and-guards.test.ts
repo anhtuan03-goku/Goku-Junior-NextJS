@@ -5,6 +5,7 @@ import {
 } from "@/application/use-cases/admin-use-cases";
 import {
   GetAuthenticatedUserUseCase,
+  LoginAdminUseCase,
   LoginUserUseCase,
 } from "@/application/use-cases/auth-use-cases";
 import { SaveImageUseCase } from "@/application/use-cases/image-use-cases";
@@ -574,5 +575,58 @@ describe("Admin Last-Admin Protection, Locked-User Revocation & Profile Controls
     const cleared = await removeAvatar.execute(user.id);
     expect(deleteSpy).toHaveBeenCalledWith("goku_avatars/user_1");
     expect(cleared.avatarUrl).toBeNull();
+  });
+
+  it("strictly isolates Member login (/login) from Admin Portal login (/admin/login)", async () => {
+    const { repo } = buildUserMemoryRepo();
+    const hasher = new BcryptPasswordHasher();
+    const tokenService = new JoseSessionTokenService(
+      "test_jwt_secret_for_admin_portal_isolation_123456",
+    );
+
+    const adminHash = await hasher.hash("AdminPass123!");
+    const userHash = await hasher.hash("MemberPass123!");
+
+    const admin = await repo.create({
+      username: "root_admin",
+      passwordHash: adminHash,
+      role: "ADMIN",
+    });
+    const member = await repo.create({
+      username: "normal_member",
+      passwordHash: userHash,
+      role: "USER",
+    });
+
+    const loginUser = new LoginUserUseCase(repo, hasher, tokenService);
+    const loginAdmin = new LoginAdminUseCase(repo, hasher, tokenService);
+
+    // 1. Admin credentials MUST fail on public Member login (/api/auth/login)
+    await expect(
+      loginUser.execute({ username: "root_admin", password: "AdminPass123!" }),
+    ).rejects.toThrow(UnauthorizedError);
+
+    // 2. Member credentials MUST fail on Admin Portal login (/api/admin/auth/login)
+    await expect(
+      loginAdmin.execute({
+        username: "normal_member",
+        password: "MemberPass123!",
+      }),
+    ).rejects.toThrow(UnauthorizedError);
+
+    // 3. Each account succeeds ONLY on its dedicated login portal
+    const memberRes = await loginUser.execute({
+      username: "normal_member",
+      password: "MemberPass123!",
+    });
+    expect(memberRes.user.id).toBe(member.id);
+    expect(memberRes.user.role).toBe("USER");
+
+    const adminRes = await loginAdmin.execute({
+      username: "root_admin",
+      password: "AdminPass123!",
+    });
+    expect(adminRes.user.id).toBe(admin.id);
+    expect(adminRes.user.role).toBe("ADMIN");
   });
 });

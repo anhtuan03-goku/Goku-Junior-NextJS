@@ -46,6 +46,7 @@ export class SlidingWindowRateLimiter {
 }
 
 export const authRateLimiter = new SlidingWindowRateLimiter(12, 60_000); // 12 attempts / min / IP
+export const adminAuthRateLimiter = new SlidingWindowRateLimiter(5, 60_000); // 5 attempts / min / IP (strict admin portal guard)
 export const mutationRateLimiter = new SlidingWindowRateLimiter(60, 60_000); // 60 mutations / min / user
 export const uploadRateLimiter = new SlidingWindowRateLimiter(10, 60_000); // 10 uploads / min / user
 

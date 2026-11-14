@@ -18,10 +18,10 @@ export const metadata: Metadata = {
 export default async function AdminPage() {
   const user = await getOptionalSessionUser();
   if (!user) {
-    redirect("/login");
+    redirect("/admin/login");
   }
   if (user.role !== "ADMIN") {
-    redirect("/");
+    redirect("/admin/login");
   }
 
   const container = getContainer();

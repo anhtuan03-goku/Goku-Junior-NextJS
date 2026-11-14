@@ -85,13 +85,60 @@ export class LoginUserUseCase {
       input.password,
       user.passwordHash,
     );
-    if (!valid) {
+    if (!valid || user.role !== "USER") {
       throw new UnauthorizedError("Invalid username or password.");
     }
 
     if (!user.isActive) {
       throw new ForbiddenError(
         "Your account is currently locked by an administrator.",
+      );
+    }
+
+    const token = await this.tokenService.sign({
+      sub: user.id,
+      username: user.username,
+      role: user.role,
+      sv: user.sessionVersion,
+    });
+
+    return { user: toSafeUserDTO(user), token };
+  }
+}
+
+export class LoginAdminUseCase {
+  constructor(
+    private readonly userRepo: IUserRepository,
+    private readonly passwordHasher: IPasswordHasher,
+    private readonly tokenService: ISessionTokenService,
+  ) {}
+
+  async execute(input: {
+    username: string;
+    password: string;
+  }): Promise<{ user: SafeUserDTO; token: string }> {
+    const username = input.username.trim().toLowerCase();
+    if (!username || !input.password) {
+      throw new UnauthorizedError("Invalid administrator credentials.");
+    }
+
+    const user = await this.userRepo.findByUsername(username);
+    if (!user) {
+      await this.passwordHasher.verify(input.password, DUMMY_BCRYPT_HASH);
+      throw new UnauthorizedError("Invalid administrator credentials.");
+    }
+
+    const valid = await this.passwordHasher.verify(
+      input.password,
+      user.passwordHash,
+    );
+    if (!valid || user.role !== "ADMIN") {
+      throw new UnauthorizedError("Invalid administrator credentials.");
+    }
+
+    if (!user.isActive) {
+      throw new ForbiddenError(
+        "This administrator account is currently locked.",
       );
     }
 

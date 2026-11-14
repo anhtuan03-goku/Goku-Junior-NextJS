@@ -17,7 +17,7 @@ const envSchema = z.object({
   ENABLE_SECONDARY_PROVIDER: z
     .enum(["true", "false"])
     .optional()
-    .default("true"),
+    .default("false"),
 });
 
 export interface CloudinaryCredentials {

@@ -8,6 +8,7 @@ import {
 } from "@/application/use-cases/admin-use-cases";
 import {
   GetAuthenticatedUserUseCase,
+  LoginAdminUseCase,
   LoginUserUseCase,
   RegisterUserUseCase,
 } from "@/application/use-cases/auth-use-cases";
@@ -86,6 +87,7 @@ function buildContainer() {
         tokenService,
       ),
       loginUser: new LoginUserUseCase(userRepo, passwordHasher, tokenService),
+      loginAdmin: new LoginAdminUseCase(userRepo, passwordHasher, tokenService),
       getAuthenticatedUser: new GetAuthenticatedUserUseCase(
         userRepo,
         tokenService,
