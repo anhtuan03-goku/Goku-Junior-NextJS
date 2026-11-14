@@ -106,4 +106,22 @@ describe("naut.frame Brand, English Localization, SEO & UI Invariants", () => {
     expect(header).toContain("naut");
     expect(header).not.toContain("goku");
   });
+
+  it("constrains lightbox Dialog grid track and image max-w-full / h-auto to prevent horizontal overflow on wide ratios", () => {
+    const dialog = fs.readFileSync(
+      path.join(ROOT, "src/components/ui/dialog.tsx"),
+      "utf8",
+    );
+    expect(dialog).toContain("grid-cols-[minmax(0,1fr)]");
+    expect(dialog).toContain("overflow-x-hidden");
+
+    const imageCard = fs.readFileSync(
+      path.join(ROOT, "src/components/images/image-card.tsx"),
+      "utf8",
+    );
+    expect(imageCard).toContain("max-w-full");
+    expect(imageCard).toContain("h-auto");
+    expect(imageCard).toContain("w-auto");
+    expect(imageCard).toContain("object-contain");
+  });
 });

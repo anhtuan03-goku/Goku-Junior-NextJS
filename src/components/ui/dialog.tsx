@@ -19,7 +19,7 @@ export function DialogContent({
       <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
       <DialogPrimitive.Content
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-[calc(100%-1.5rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-border bg-background p-5 shadow-xl duration-150 max-h-[90vh] overflow-y-auto",
+          "fixed top-1/2 left-1/2 z-50 grid grid-cols-[minmax(0,1fr)] w-[calc(100%-1.5rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-border bg-background p-5 shadow-xl duration-150 max-h-[90dvh] overflow-x-hidden overflow-y-auto",
           className,
         )}
         {...props}
@@ -42,7 +42,7 @@ export function DialogHeader({
 }: React.ComponentProps<"div">) {
   return (
     <div
-      className={cn("flex flex-col gap-1.5 text-left", className)}
+      className={cn("flex min-w-0 flex-col gap-1.5 text-left", className)}
       {...props}
     />
   );

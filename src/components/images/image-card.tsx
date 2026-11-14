@@ -216,9 +216,9 @@ export function MinimalImageCard({
       </article>
 
       <Dialog open={openPreview} onOpenChange={setOpenPreview}>
-        <DialogContent className="max-w-3xl p-4 sm:p-6">
+        <DialogContent className="max-w-4xl p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle className="font-medium text-sm truncate pr-6">
+            <DialogTitle className="font-medium text-sm truncate pr-8">
               {item.description || "Minimalist frame"}
             </DialogTitle>
             <DialogDescription>
@@ -228,28 +228,32 @@ export function MinimalImageCard({
 
           <div
             style={{ backgroundColor: item.color ?? undefined }}
-            className="overflow-hidden rounded-md border border-border bg-muted flex items-center justify-center max-h-[68vh]"
+            className="relative flex w-full min-w-0 max-h-[min(70vh,calc(90dvh-11rem))] items-center justify-center overflow-hidden rounded-md border border-border bg-muted/60"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={item.imageUrl}
               alt={item.description ?? "Expanded frame preview"}
-              className="max-h-[68vh] w-auto object-contain"
+              className="block h-auto w-auto max-h-[min(70vh,calc(90dvh-11rem))] max-w-full min-w-0 object-contain"
             />
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 pt-1">
             {showPhotographerInfo && item.photographer ? (
-              <div className="flex items-center gap-2.5">
+              <div className="flex min-w-0 items-center gap-2.5">
                 <UserAvatarCircle
                   username={item.photographer.name}
                   avatarUrl={item.photographer.avatarUrl}
                   size="sm"
                 />
-                <div className="text-xs">
-                  <p className="font-medium">{item.photographer.name}</p>
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <span>@{item.photographer.username}</span>
+                <div className="min-w-0 text-xs">
+                  <p className="truncate font-medium">
+                    {item.photographer.name}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
+                    <span className="truncate">
+                      @{item.photographer.username}
+                    </span>
                     {photographerHref && (
                       <Link
                         href={photographerHref}
