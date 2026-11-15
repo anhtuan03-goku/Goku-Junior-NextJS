@@ -149,6 +149,19 @@ export interface QuotaHealthSummary {
   cachedImagesCount: number;
   cachedPhotographersCount: number;
   pendingJobsCount: number;
+  secondaryProvider?: {
+    provider: string;
+    enabled: boolean;
+    configured: boolean;
+    remainingQuota: number;
+    limitQuota: number;
+    windowResetSeconds: number;
+    cacheTtlHours: number;
+  };
+  tertiaryProvider?: {
+    provider: string;
+    enabled: boolean;
+  };
 }
 
 export interface AdminUserSummary {
@@ -179,4 +192,12 @@ export interface PlatformStats {
     postCount: number;
   }>;
   quota: QuotaHealthSummary;
+}
+
+export interface SpaceFeedResponseDTO {
+  items: Array<
+    ExternalImageItem & { savedByMe: boolean; savedImageId: string | null }
+  >;
+  page: number;
+  hasMore: boolean;
 }

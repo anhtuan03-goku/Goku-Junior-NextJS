@@ -7,6 +7,7 @@ import {
 import { getContainer } from "@/infrastructure/container";
 import { getOptionalSessionUser } from "@/interfaces/http/api-helpers";
 
+// Protected SSR: Strictly user-isolated saved frames & private/public journal stories
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
@@ -51,17 +52,7 @@ export default async function SavedPage({
   }));
 
   return (
-    <section className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
-          Saved Frames & Stories
-        </h1>
-        <p className="text-xs sm:text-sm text-muted-foreground">
-          Select any saved frame to write multiple stories, edit notes, or
-          switch visibility between Private and Public anytime.
-        </p>
-      </div>
-
+    <section>
       <SavedMultiPostStudio
         initialItems={serialized}
         initialHighlightId={highlight}

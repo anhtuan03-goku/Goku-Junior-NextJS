@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
 import { ArrowLeft, Eye, EyeOff, Loader2, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { PolarBearMascot } from "@/components/auth/polar-bear-mascot";
@@ -10,6 +12,11 @@ import { useAppSession } from "@/components/providers/app-providers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { SafeUserDTO } from "@/domain/entities/models";
+import { cn } from "@/lib/utils";
+import {
+  type LoginFormValues,
+  createLoginFormSchema,
+} from "@/lib/validations/forms";
 
 type AdminFocusedField = "username" | "password" | null;
 
@@ -25,16 +32,35 @@ export function AdminLoginForm({
   currentMemberUsername?: string | null;
 }) {
   const router = useRouter();
-  const { setUser } = useAppSession();
+  const { setUser, locale, t, tr } = useAppSession();
 
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-
   const [focusedField, setFocusedField] = useState<AdminFocusedField>(null);
   const [caretLookX, setCaretLookX] = useState<number>(0);
-  const [hasError, setHasError] = useState(false);
+  const [hasServerError, setHasServerError] = useState(false);
+
+  const schema = useMemo(() => createLoginFormSchema(locale), [locale]);
+
+  const {
+    register,
+    handleSubmit,
+    trigger,
+    formState: { errors, isSubmitting, touchedFields },
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(schema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
+    defaultValues: {
+      username: "",
+      password: "",
+    },
+  });
+
+  useEffect(() => {
+    if (Object.keys(touchedFields).length > 0) {
+      void trigger();
+    }
+  }, [locale, touchedFields, trigger]);
 
   const focusedLookY =
     focusedField === "username"
@@ -44,8 +70,8 @@ export function AdminLoginForm({
         : null;
 
   function triggerErrorFeedback() {
-    setHasError(true);
-    window.setTimeout(() => setHasError(false), 500);
+    setHasServerError(true);
+    window.setTimeout(() => setHasServerError(false), 500);
   }
 
   function syncCaretFromEvent(
@@ -56,18 +82,14 @@ export function AdminLoginForm({
     setCaretLookX(computeCaretLookX(el));
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (submitting) return;
-    setSubmitting(true);
-
+  async function onSubmit(values: LoginFormValues) {
     try {
       const res = await fetch("/api/admin/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username: username.trim(),
-          password,
+          username: values.username.trim(),
+          password: values.password,
         }),
       });
 
@@ -77,24 +99,31 @@ export function AdminLoginForm({
       };
 
       if (!res.ok || !data.user) {
-        throw new Error(
-          data.error ?? "Invalid administrator credentials.",
-        );
+        throw new Error(data.error ?? "Invalid administrator credentials.");
       }
 
       setUser(data.user);
-      toast.success(`Admin session opened for @${data.user.username}.`);
+      toast.success(
+        locale === "vi"
+          ? `Đã mở phiên Quản trị viên cho @${data.user.username}.`
+          : `Admin session opened for @${data.user.username}.`,
+      );
       router.push("/admin");
       router.refresh();
     } catch (err) {
       triggerErrorFeedback();
       toast.error(
-        err instanceof Error ? err.message : "Unable to verify admin access.",
+        tr(
+          err instanceof Error
+            ? err.message
+            : "Unable to verify admin access.",
+        ),
       );
-    } finally {
-      setSubmitting(false);
     }
   }
+
+  const usernameField = register("username");
+  const passwordField = register("password");
 
   return (
     <div className="mx-auto flex min-h-[74vh] max-w-sm flex-col justify-center py-6 sm:py-8">
@@ -102,7 +131,7 @@ export function AdminLoginForm({
         <div className="flex items-center justify-center">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary/70 px-3 py-1 text-[11px] font-medium tracking-wide text-foreground">
             <Shield className="size-3.5" />
-            Admin Portal · Restricted Access
+            {t.adminLogin.badge}
           </span>
         </div>
 
@@ -112,60 +141,66 @@ export function AdminLoginForm({
             inputLookY={focusedLookY}
             isCoveringEyes={showPassword}
             isInputFocused={focusedField !== null}
-            isHappy={submitting}
-            hasError={hasError}
+            isHappy={isSubmitting}
+            hasError={hasServerError || Object.keys(errors).length > 0}
           />
         </div>
 
         <div className="space-y-1 text-center">
           <h1 className="text-lg font-semibold tracking-tight">
-            Administrator Sign In
+            {t.adminLogin.title}
           </h1>
           <p className="text-xs text-muted-foreground">
-            Dedicated gateway for platform governance, quota telemetry, and
-            moderation audit logs.
+            {t.adminLogin.subtitle}
           </p>
         </div>
 
         {currentMemberUsername && (
           <div className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-[11px] text-muted-foreground text-center">
-            Currently signed in as member{" "}
-            <span className="font-medium text-foreground">
-              @{currentMemberUsername}
-            </span>
-            . Authenticate below with an Administrator account to switch
-            sessions.
+            {t.adminLogin.currentMemberNote.replace(
+              "{username}",
+              currentMemberUsername,
+            )}
           </div>
         )}
 
-        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+        <form
+          noValidate
+          onSubmit={(e) =>
+            void handleSubmit(onSubmit, () => triggerErrorFeedback())(e)
+          }
+          className="space-y-4"
+        >
           <div className="space-y-1.5">
             <label
               htmlFor="admin-username"
               className="block text-xs font-medium text-foreground"
             >
-              Admin username
+              {t.adminLogin.usernameLabel}
             </label>
             <Input
               id="admin-username"
-              name="username"
               autoComplete="username"
-              required
-              minLength={3}
-              maxLength={64}
-              value={username}
+              placeholder={t.adminLogin.usernamePlaceholder}
+              aria-invalid={Boolean(errors.username) || undefined}
+              className={cn(
+                errors.username &&
+                  "border-destructive focus-visible:border-destructive",
+              )}
+              {...usernameField}
               onFocus={(e) => syncCaretFromEvent("username", e.currentTarget)}
-              onBlur={() =>
-                setFocusedField((cur) => (cur === "username" ? null : cur))
-              }
+              onBlur={(e) => {
+                void usernameField.onBlur(e);
+                setFocusedField((cur) => (cur === "username" ? null : cur));
+              }}
               onClick={(e) => syncCaretFromEvent("username", e.currentTarget)}
               onKeyUp={(e) => syncCaretFromEvent("username", e.currentTarget)}
-              onChange={(e) => {
-                setUsername(e.target.value);
-                syncCaretFromEvent("username", e.currentTarget);
-              }}
-              placeholder="Administrator username"
             />
+            {errors.username?.message && (
+              <p role="alert" className="text-[11px] font-medium text-destructive">
+                {errors.username.message}
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -173,39 +208,35 @@ export function AdminLoginForm({
               htmlFor="admin-password"
               className="block text-xs font-medium text-foreground"
             >
-              Admin password
+              {t.adminLogin.passwordLabel}
             </label>
             <div className="relative">
               <Input
                 id="admin-password"
-                name="password"
                 type={showPassword ? "text" : "password"}
                 autoComplete="current-password"
-                required
-                minLength={1}
-                maxLength={128}
-                value={password}
+                placeholder="••••••••"
+                aria-invalid={Boolean(errors.password) || undefined}
+                className={cn(
+                  "pr-9",
+                  errors.password &&
+                    "border-destructive focus-visible:border-destructive",
+                )}
+                {...passwordField}
                 onFocus={(e) => syncCaretFromEvent("password", e.currentTarget)}
-                onBlur={() =>
-                  setFocusedField((cur) => (cur === "password" ? null : cur))
-                }
+                onBlur={(e) => {
+                  void passwordField.onBlur(e);
+                  setFocusedField((cur) => (cur === "password" ? null : cur));
+                }}
                 onClick={(e) => syncCaretFromEvent("password", e.currentTarget)}
                 onKeyUp={(e) => syncCaretFromEvent("password", e.currentTarget)}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  syncCaretFromEvent("password", e.currentTarget);
-                }}
-                placeholder="••••••••"
-                className="pr-9"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((prev) => !prev)}
                 className="absolute top-1/2 right-0.5 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground active:scale-95 cursor-pointer"
                 aria-label={
-                  showPassword
-                    ? "Hide admin password characters"
-                    : "Show admin password characters"
+                  showPassword ? t.auth.hidePassword : t.auth.showPassword
                 }
               >
                 {showPassword ? (
@@ -215,19 +246,28 @@ export function AdminLoginForm({
                 )}
               </button>
             </div>
+            {errors.password?.message && (
+              <p role="alert" className="text-[11px] font-medium text-destructive">
+                {errors.password.message}
+              </p>
+            )}
           </div>
 
           <Button
             type="submit"
             className="w-full h-10 font-medium shadow-sm active:scale-[0.97]"
-            disabled={submitting}
+            disabled={isSubmitting || Object.keys(errors).length > 0}
           >
-            {submitting ? (
+            {isSubmitting ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
               <Shield className="size-4" />
             )}
-            <span>Enter Admin Console</span>
+            <span>
+              {isSubmitting
+                ? t.adminLogin.submittingBtn
+                : t.adminLogin.submitBtn}
+            </span>
           </Button>
         </form>
 
@@ -237,7 +277,7 @@ export function AdminLoginForm({
             className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="size-3" />
-            Member sign in
+            {t.adminLogin.backToMemberLogin}
           </Link>
         </div>
       </div>

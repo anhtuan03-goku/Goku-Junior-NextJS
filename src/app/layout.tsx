@@ -1,20 +1,23 @@
 import type { Metadata, Viewport } from "next";
-import Link from "next/link";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Inter } from "next/font/google";
+import { MinimalFooter } from "@/components/layout/minimal-footer";
 import { MinimalHeader } from "@/components/layout/minimal-header";
 import { AppProviders } from "@/components/providers/app-providers";
 import { getOptionalSafeSessionUser } from "@/interfaces/http/api-helpers";
+import { getRequestLocale } from "@/lib/i18n-server";
 import { SITE_CONFIG, getSiteUrl } from "@/lib/site-config";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+const interSans = Inter({
+  variable: "--font-inter-sans",
+  subsets: ["latin", "vietnamese"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "swap",
 });
 
 export const viewport: Viewport = {
@@ -52,7 +55,8 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    locale: "en_US",
+    locale: "vi_VN",
+    alternateLocale: ["en_US"],
     url: "/",
     siteName: SITE_CONFIG.name,
     title: SITE_CONFIG.title,
@@ -81,7 +85,10 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const initialUser = await getOptionalSafeSessionUser();
+  const [initialUser, initialLocale] = await Promise.all([
+    getOptionalSafeSessionUser(),
+    getRequestLocale(),
+  ]);
   const baseUrl = getSiteUrl().origin;
 
   const websiteJsonLd = {
@@ -90,13 +97,13 @@ export default async function RootLayout({
     name: SITE_CONFIG.name,
     url: baseUrl,
     description: SITE_CONFIG.description,
-    inLanguage: "en-US",
+    inLanguage: ["vi-VN", "en-US"],
   };
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={initialLocale} suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} font-sans min-h-screen flex flex-col`}
+        className={`${interSans.variable} ${geistMono.variable} font-sans min-h-screen flex flex-col`}
       >
         <script
           type="application/ld+json"
@@ -104,33 +111,12 @@ export default async function RootLayout({
             __html: JSON.stringify(websiteJsonLd).replace(/</g, "\\u003c"),
           }}
         />
-        <AppProviders initialUser={initialUser}>
+        <AppProviders initialUser={initialUser} initialLocale={initialLocale}>
           <MinimalHeader />
           <main className="flex-1 mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
             {children}
           </main>
-          <footer className="border-t border-border/60 py-5 px-4">
-            <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 text-[11px] text-muted-foreground">
-              <span>
-                © {new Date().getFullYear()} {SITE_CONFIG.name} · Minimalist
-                visual journal.
-              </span>
-              <div className="flex items-center gap-4">
-                <Link
-                  href="/community"
-                  className="hover:text-foreground transition-colors"
-                >
-                  Community
-                </Link>
-                <Link
-                  href="/privacy"
-                  className="underline underline-offset-4 hover:text-foreground transition-colors"
-                >
-                  Zero-PII Privacy Policy
-                </Link>
-              </div>
-            </div>
-          </footer>
+          <MinimalFooter />
         </AppProviders>
       </body>
     </html>

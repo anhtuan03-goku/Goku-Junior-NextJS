@@ -1,15 +1,29 @@
 import type { Metadata } from "next";
+import { unstable_cache } from "next/cache";
 import Link from "next/link";
 import { ArrowLeft, ExternalLink, Globe, MapPin } from "lucide-react";
 import { MinimalImageCard } from "@/components/images/image-card";
-import { Badge, UserAvatarCircle } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
+import { Badge, UserAvatarCircle } from "@/components/ui/primitives";
 import { DomainError } from "@/domain/errors/domain-errors";
 import { getContainer } from "@/infrastructure/container";
 import { getOptionalSessionUser } from "@/interfaces/http/api-helpers";
+import { autoTranslateMessage } from "@/lib/i18n";
+import { getRequestLocale } from "@/lib/i18n-server";
 import { SITE_CONFIG, getSiteUrl } from "@/lib/site-config";
 
+// Hybrid ISR Data Cache (600s) + Dynamic Viewer Decoration (`savedByMe`)
 export const dynamic = "force-dynamic";
+
+const getCachedPublicPhotographerDetail = unstable_cache(
+  async (username: string) =>
+    getContainer().useCases.getPhotographerDetail.execute({
+      username,
+      viewerUserId: null,
+    }),
+  ["public-photographer-detail-v1"],
+  { revalidate: 600 },
+);
 
 export async function generateMetadata({
   params,
@@ -21,10 +35,7 @@ export async function generateMetadata({
   const canonicalPath = `/photographers/${encodeURIComponent(decodedUsername)}`;
 
   try {
-    const detail = await getContainer().useCases.getPhotographerDetail.execute({
-      username: decodedUsername,
-      viewerUserId: null,
-    });
+    const detail = await getCachedPublicPhotographerDetail(decodedUsername);
     const title = `${detail.name} (@${detail.username}) — Photographer`;
     const description =
       detail.bio?.slice(0, 160) ||
@@ -63,7 +74,11 @@ export default async function PhotographerDetailPage({
 }) {
   const { username } = await params;
   const decodedUsername = decodeURIComponent(username);
-  const viewer = await getOptionalSessionUser();
+  const [viewer, locale] = await Promise.all([
+    getOptionalSessionUser(),
+    getRequestLocale(),
+  ]);
+  const isVi = locale === "vi";
 
   let detail: Awaited<
     ReturnType<
@@ -73,15 +88,19 @@ export default async function PhotographerDetailPage({
   let errorMessage: string | null = null;
 
   try {
-    detail = await getContainer().useCases.getPhotographerDetail.execute({
-      username: decodedUsername,
-      viewerUserId: viewer?.id ?? null,
-    });
+    detail = viewer
+      ? await getContainer().useCases.getPhotographerDetail.execute({
+          username: decodedUsername,
+          viewerUserId: viewer.id,
+        })
+      : await getCachedPublicPhotographerDetail(decodedUsername);
   } catch (err) {
     errorMessage =
       err instanceof DomainError
-        ? err.message
-        : "Unable to load photographer details right now.";
+        ? autoTranslateMessage(err.message, locale)
+        : isVi
+          ? "Hiện không thể tải thông tin nhiếp ảnh gia."
+          : "Unable to load photographer details right now.";
   }
 
   if (!detail) {
@@ -91,7 +110,7 @@ export default async function PhotographerDetailPage({
         <Button variant="outline" size="sm" asChild>
           <Link href="/">
             <ArrowLeft className="size-3.5" />
-            Back to Explore
+            {isVi ? "Quay lại Khám phá" : "Back to Explore"}
           </Link>
         </Button>
       </div>
@@ -130,7 +149,7 @@ export default async function PhotographerDetailPage({
         >
           <Link href="/">
             <ArrowLeft className="size-3.5" />
-            Back to Explore
+            {isVi ? "Quay lại Khám phá" : "Back to Explore"}
           </Link>
         </Button>
       </div>
@@ -153,7 +172,9 @@ export default async function PhotographerDetailPage({
                   @{detail.username}
                 </span>
                 {detail.isFallbackCache && (
-                  <Badge variant="secondary">Synced from edge cache</Badge>
+                  <Badge variant="secondary">
+                    {isVi ? "Đồng bộ từ bộ nhớ đệm" : "Synced from edge cache"}
+                  </Badge>
                 )}
               </div>
 
@@ -179,7 +200,9 @@ export default async function PhotographerDetailPage({
                       className="inline-flex items-center gap-1 hover:text-foreground underline underline-offset-4"
                     >
                       <Globe className="size-3.5" />
-                      Portfolio
+                      {detail.provider === "pixabay"
+                        ? "Pixabay Source"
+                        : "Portfolio"}
                     </a>
                   )}
                 {detail.profileUrl &&
@@ -190,7 +213,11 @@ export default async function PhotographerDetailPage({
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 hover:text-foreground underline underline-offset-4"
                     >
-                      Unsplash Profile
+                      {detail.provider === "pixabay"
+                        ? "Pixabay Profile"
+                        : detail.provider === "picsum"
+                          ? "Picsum Source"
+                          : "Unsplash Profile"}
                       <ExternalLink className="size-3" />
                     </a>
                   )}
@@ -203,19 +230,25 @@ export default async function PhotographerDetailPage({
               <p className="text-lg font-semibold tabular-nums">
                 {detail.totalPhotos.toLocaleString("en-US")}
               </p>
-              <p className="text-[11px] text-muted-foreground">Photos</p>
+              <p className="text-[11px] text-muted-foreground">
+                {isVi ? "Tác phẩm" : "Photos"}
+              </p>
             </div>
             <div>
               <p className="text-lg font-semibold tabular-nums">
                 {detail.totalLikes.toLocaleString("en-US")}
               </p>
-              <p className="text-[11px] text-muted-foreground">Likes</p>
+              <p className="text-[11px] text-muted-foreground">
+                {isVi ? "Lượt thích" : "Likes"}
+              </p>
             </div>
             <div>
               <p className="text-lg font-semibold tabular-nums">
                 {detail.totalCollections.toLocaleString("en-US")}
               </p>
-              <p className="text-[11px] text-muted-foreground">Collections</p>
+              <p className="text-[11px] text-muted-foreground">
+                {isVi ? "Bộ sưu tập" : "Collections"}
+              </p>
             </div>
           </div>
         </div>
@@ -224,12 +257,16 @@ export default async function PhotographerDetailPage({
       {/* Photographer's Curated Gallery */}
       <div className="space-y-4">
         <h2 className="text-sm font-medium text-muted-foreground">
-          Featured Works ({detail.photos.length})
+          {isVi
+            ? `Tác phẩm tiêu biểu (${detail.photos.length})`
+            : `Featured Works (${detail.photos.length})`}
         </h2>
 
         {detail.photos.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border py-14 text-center text-xs text-muted-foreground">
-            No cached photographs are available for this photographer yet.
+            {isVi
+              ? "Chưa có tác phẩm nào được lưu đệm cho nhiếp ảnh gia này."
+              : "No cached photographs are available for this photographer yet."}
           </div>
         ) : (
           <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4">

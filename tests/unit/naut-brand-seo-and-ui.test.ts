@@ -7,34 +7,17 @@ import { SITE_CONFIG } from "@/lib/site-config";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 
-function collectSourceFiles(dir: string): string[] {
-  const out: string[] = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      out.push(...collectSourceFiles(full));
-    } else if (/\.(ts|tsx)$/.test(entry.name)) {
-      out.push(full);
-    }
-  }
-  return out;
-}
-
-describe("naut.frame Brand, English Localization, SEO & UI Invariants", () => {
-  it("uses naut.frame brand identity and 100% English copy across src/", () => {
+describe("naut.frame Brand, Bilingual (EN/VI), SEO & UI Invariants", () => {
+  it("uses naut.frame brand identity and ships complete bilingual EN/VI support", () => {
     expect(SITE_CONFIG.name).toBe("naut.frame");
     expect(SITE_CONFIG.title).toContain("naut.frame");
 
-    const srcFiles = collectSourceFiles(path.join(ROOT, "src"));
-    const vietnameseDiacritics = /[\u0100-\u024F\u1E00-\u1EFF]/;
-
-    for (const file of srcFiles) {
-      const content = fs.readFileSync(file, "utf8");
-      expect(
-        vietnameseDiacritics.test(content),
-        `Found non-English diacritics in ${path.relative(ROOT, file)}`,
-      ).toBe(false);
-    }
+    const i18nFile = fs.readFileSync(
+      path.join(ROOT, "src/lib/i18n.ts"),
+      "utf8",
+    );
+    expect(i18nFile).toContain('export type Locale = "vi" | "en"');
+    expect(i18nFile).toContain("autoTranslateMessage");
   });
 
   it("isolates Zero-PII policy to /privacy and removes it from Sign In / Sign Up UI", () => {

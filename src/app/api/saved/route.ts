@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ValidationError } from "@/domain/errors/domain-errors";
 import { getContainer } from "@/infrastructure/container";
+import { ALLOWED_NASA_ASSET_HOSTS } from "@/infrastructure/providers/nasa-provider";
 import { isSafeUnsplashDownloadUrl } from "@/infrastructure/providers/unsplash-provider";
+import { isLocalPixabayMediaUrl } from "@/infrastructure/storage/pixabay-media-storage";
 import {
   mutationRateLimiter,
   verifyCsrfOrigin,
@@ -12,12 +14,15 @@ import {
   requireSessionUser,
 } from "@/interfaces/http/api-helpers";
 
-const ALLOWED_IMAGE_HOSTS = new Set([
+const ALLOWED_IMAGE_HOSTS = new Set<string>([
   "images.unsplash.com",
   "plus.unsplash.com",
+  "pixabay.com",
+  "cdn.pixabay.com",
   "picsum.photos",
   "fastly.picsum.photos",
   "res.cloudinary.com",
+  ...ALLOWED_NASA_ASSET_HOSTS,
 ]);
 
 function assertSafeRemoteImageUrl(rawUrl: string): string {
@@ -40,6 +45,13 @@ function assertSafeRemoteImageUrl(rawUrl: string): string {
   return u.toString();
 }
 
+function assertSafeSavedAssetUrl(rawUrl: string, provider: string): string {
+  if (provider === "pixabay" && isLocalPixabayMediaUrl(rawUrl)) {
+    return rawUrl;
+  }
+  return assertSafeRemoteImageUrl(rawUrl);
+}
+
 function assertSafeHttpsProfileUrl(rawUrl: string): string {
   let u: URL;
   try {
@@ -55,10 +67,12 @@ function assertSafeHttpsProfileUrl(rawUrl: string): string {
 
 const saveImageSchema = z
   .object({
-    provider: z.enum(["unsplash", "picsum"]).default("unsplash"),
+    provider: z
+      .enum(["unsplash", "pixabay", "picsum", "nasa"])
+      .default("unsplash"),
     externalId: z.string().min(1).max(128),
-    imageUrl: z.string().url().max(2000),
-    thumbUrl: z.string().url().max(2000),
+    imageUrl: z.string().min(1).max(2000),
+    thumbUrl: z.string().min(1).max(2000),
     color: z.string().max(32).nullable().optional(),
     width: z.number().int().min(1).max(20000).default(1080),
     height: z.number().int().min(1).max(20000).default(1350),
@@ -92,8 +106,14 @@ export async function POST(request: Request) {
     const body = await request.json();
     const parsed = saveImageSchema.parse(body);
 
-    const safeImageUrl = assertSafeRemoteImageUrl(parsed.imageUrl);
-    const safeThumbUrl = assertSafeRemoteImageUrl(parsed.thumbUrl);
+    const safeImageUrl = assertSafeSavedAssetUrl(
+      parsed.imageUrl,
+      parsed.provider,
+    );
+    const safeThumbUrl = assertSafeSavedAssetUrl(
+      parsed.thumbUrl,
+      parsed.provider,
+    );
 
     const safePhotographerAvatar = parsed.photographerAvatar
       ? assertSafeRemoteImageUrl(parsed.photographerAvatar)

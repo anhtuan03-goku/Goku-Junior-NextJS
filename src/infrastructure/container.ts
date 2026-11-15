@@ -19,6 +19,7 @@ import {
   SaveImageUseCase,
   UnsaveImageUseCase,
 } from "@/application/use-cases/image-use-cases";
+import { BrowseSpaceImagesUseCase } from "@/application/use-cases/space-use-cases";
 import {
   CreatePostUseCase,
   DeletePostUseCase,
@@ -38,6 +39,8 @@ import {
   ImageProviderRegistry,
   PicsumRandomProvider,
 } from "./providers/picsum-provider";
+import { PixabayImageProvider } from "./providers/pixabay-provider";
+import { NasaSpaceImageProvider } from "./providers/nasa-provider";
 import { PostgresQuotaPersistenceStore } from "./providers/quota-store";
 import { UnsplashImageProvider } from "./providers/unsplash-provider";
 import { UnsplashQuotaWorker } from "./providers/unsplash-quota-worker";
@@ -47,6 +50,7 @@ import { PostgresUserRepository } from "./repositories/postgres-user-repository"
 import { JoseSessionTokenService } from "./security/jwt-session";
 import { BcryptPasswordHasher } from "./security/password-hasher";
 import { CloudinarySingleSlotStorage } from "./storage/cloudinary-avatar-storage";
+import { PixabayServerMediaStorage } from "./storage/pixabay-media-storage";
 
 function buildContainer() {
   const env = getEnv();
@@ -62,11 +66,19 @@ function buildContainer() {
   const tokenService = new JoseSessionTokenService();
   const avatarStorage = new CloudinarySingleSlotStorage();
 
-  // Extensible Multi-Provider Registry + 50 req/hr Quota Worker
+  // 3-Tier Multi-Provider Registry:
+  // Primary: Unsplash (50 req/hr) -> Secondary: Pixabay (100 req/60s, 24h cache) -> Tertiary: Picsum
   const unsplashProvider = new UnsplashImageProvider();
+  const pixabayProvider = new PixabayImageProvider();
   const picsumProvider = new PicsumRandomProvider();
+  const pixabayMediaStorage = new PixabayServerMediaStorage();
+
+  // Isolated NASA Space Provider (independent of Unsplash, Pixabay, Picsum, and fallback pools)
+  const nasaSpaceProvider = new NasaSpaceImageProvider();
+
   const providerRegistry = new ImageProviderRegistry()
     .register(unsplashProvider)
+    .register(pixabayProvider)
     .register(picsumProvider);
 
   const feedOrchestrator = new UnsplashQuotaWorker(
@@ -75,10 +87,19 @@ function buildContainer() {
     quotaStore,
     savedImageRepo,
     env.ENABLE_SECONDARY_PROVIDER === "true",
+    env.ENABLE_TERTIARY_PROVIDER === "true",
+    {
+      secondaryProviderName: pixabayProvider.providerName,
+      tertiaryProviderName: picsumProvider.providerName,
+      pixabayMediaStorage,
+    },
   );
 
   return {
     providerRegistry,
+    pixabayProvider,
+    pixabayMediaStorage,
+    nasaSpaceProvider,
     useCases: {
       // Auth
       registerUser: new RegisterUserUseCase(
@@ -106,6 +127,10 @@ function buildContainer() {
 
       // Images & Photographers
       browseInfiniteImages: new BrowseInfiniteImagesUseCase(feedOrchestrator),
+      browseSpaceImages: new BrowseSpaceImagesUseCase(
+        nasaSpaceProvider,
+        savedImageRepo,
+      ),
       getPhotographerDetail: new GetPhotographerDetailUseCase(feedOrchestrator),
       saveImage: new SaveImageUseCase(savedImageRepo, feedOrchestrator),
       unsaveImage: new UnsaveImageUseCase(savedImageRepo),

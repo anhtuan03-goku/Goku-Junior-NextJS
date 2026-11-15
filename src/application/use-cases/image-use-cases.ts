@@ -86,12 +86,21 @@ export class SaveImageUseCase {
       return { savedImage: existing, alreadySaved: true };
     }
 
+    const resolvedUrls = this.orchestrator.resolvePermanentImageUrls
+      ? await this.orchestrator.resolvePermanentImageUrls({
+          provider: input.provider,
+          externalId: input.externalId,
+          imageUrl: input.imageUrl,
+          thumbUrl: input.thumbUrl,
+        })
+      : { imageUrl: input.imageUrl, thumbUrl: input.thumbUrl };
+
     const created = await this.savedImageRepo.create({
       userId: input.userId,
       provider: input.provider,
       externalId: input.externalId,
-      imageUrl: input.imageUrl,
-      thumbUrl: input.thumbUrl,
+      imageUrl: resolvedUrls.imageUrl,
+      thumbUrl: resolvedUrls.thumbUrl,
       color: input.color ?? null,
       width: Math.max(1, Math.floor(input.width || 800)),
       height: Math.max(1, Math.floor(input.height || 600)),

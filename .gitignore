@@ -38,3 +38,6 @@ yarn-error.log*
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# Server-archived external media cache (Pixabay permanent local storage)
+/.data/

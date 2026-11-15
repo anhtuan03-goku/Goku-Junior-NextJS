@@ -14,7 +14,21 @@ const envSchema = z.object({
   CLOUDINARY_URL: z
     .string()
     .startsWith("cloudinary://", "CLOUDINARY_URL must start with cloudinary://"),
+  PIXABAY_API_KEY: z
+    .preprocess(
+      (val) => (typeof val === "string" && val.trim() === "" ? undefined : val),
+      z.string().trim().min(10, "PIXABAY_API_KEY must be at least 10 characters").optional(),
+    ),
+  NASA_API_KEY: z
+    .preprocess(
+      (val) => (typeof val === "string" && val.trim() === "" ? undefined : val),
+      z.string().trim().min(8, "NASA_API_KEY must be at least 8 characters").optional(),
+    ),
   ENABLE_SECONDARY_PROVIDER: z
+    .enum(["true", "false"])
+    .optional()
+    .default("true"),
+  ENABLE_TERTIARY_PROVIDER: z
     .enum(["true", "false"])
     .optional()
     .default("true"),

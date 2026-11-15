@@ -12,6 +12,11 @@ import type {
   IImageProvider,
   ISavedImageRepository,
 } from "@/domain/repositories/ports";
+import type { PixabayServerMediaStorage } from "../storage/pixabay-media-storage";
+import {
+  PIXABAY_CACHE_TTL_MS,
+  PixabayImageProvider,
+} from "./pixabay-provider";
 import type { ImageProviderRegistry } from "./picsum-provider";
 import type { IQuotaPersistenceStore } from "./quota-store";
 import {
@@ -31,15 +36,45 @@ interface L1PageCacheEntry {
   expiresAt: number;
 }
 
+export interface MultiProviderWorkerOptions {
+  secondaryProviderName?: string;
+  tertiaryProviderName?: string;
+  pixabayMediaStorage?: PixabayServerMediaStorage;
+}
+
 function computeNextHourReset(nowMs = Date.now()): Date {
   const nextTopOfHour = (Math.floor(nowMs / 3_600_000) + 1) * 3_600_000;
   return new Date(nextTopOfHour);
+}
+
+function appendUniqueItems(
+  target: ExternalImageItem[],
+  candidates: ExternalImageItem[],
+  maxTotal: number,
+): ExternalImageItem[] {
+  if (target.length >= maxTotal || candidates.length === 0) {
+    return target;
+  }
+  const seen = new Set(target.map((i) => `${i.provider}:${i.externalId}`));
+  const merged = [...target];
+  for (const item of candidates) {
+    if (merged.length >= maxTotal) break;
+    const key = `${item.provider}:${item.externalId}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      merged.push(item);
+    }
+  }
+  return merged;
 }
 
 export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
   private readonly inFlight = new Map<string, Promise<unknown>>();
   private readonly l1FeedCache = new Map<string, L1PageCacheEntry>();
   private isDrainingQueue = false;
+  private readonly secondaryProviderName: string;
+  private readonly tertiaryProviderName: string;
+  private readonly pixabayMediaStorage?: PixabayServerMediaStorage;
 
   constructor(
     private readonly primaryProvider: IImageProvider,
@@ -47,7 +82,13 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
     private readonly store: IQuotaPersistenceStore,
     private readonly savedImageRepo: ISavedImageRepository,
     private readonly enableSecondaryFallback = true,
-  ) {}
+    private readonly enableTertiaryFallback = true,
+    options?: MultiProviderWorkerOptions,
+  ) {
+    this.secondaryProviderName = options?.secondaryProviderName ?? "pixabay";
+    this.tertiaryProviderName = options?.tertiaryProviderName ?? "picsum";
+    this.pixabayMediaStorage = options?.pixabayMediaStorage;
+  }
 
   /**
    * Singleflight coalescer: ensures N identical concurrent requests
@@ -131,6 +172,7 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
   private async hydratePoolAndPhotographers(
     items: ExternalImageItem[],
     queryTag = "",
+    providerOverride?: string,
   ): Promise<void> {
     if (items.length === 0) return;
     await this.store.upsertCachedImages(items, queryTag);
@@ -142,7 +184,7 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
     if (photographers.length > 0) {
       await this.store.upsertPhotographers(
         photographers,
-        this.primaryProvider.providerName,
+        providerOverride ?? items[0]?.provider ?? this.primaryProvider.providerName,
         false,
       );
     }
@@ -179,6 +221,71 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
     });
   }
 
+  /**
+   * Fetches items from a fallback provider (Secondary = Pixabay or Tertiary = Picsum),
+   * hydrating Neon DB cache & photographer snapshots and swallowing any upstream 429/errors
+   * so Zero-429 cascade continues smoothly.
+   */
+  private async fetchFromFallbackProvider(params: {
+    provider: IImageProvider;
+    page: number;
+    needed: number;
+    query?: string;
+    persistToPool: boolean;
+    allowDbPoolFallback: boolean;
+  }): Promise<ExternalImageItem[]> {
+    const {
+      provider,
+      page,
+      needed,
+      query,
+      persistToPool,
+      allowDbPoolFallback,
+    } = params;
+    if (needed <= 0) return [];
+
+    // Fetch standard 30-photo batch for Pixabay so its mandatory 24-hour cache holds full pages
+    const fetchCount =
+      provider.providerName === "pixabay"
+        ? Math.max(needed, UNSPLASH_MAX_PER_PAGE)
+        : needed;
+
+    try {
+      const res = await provider.fetchPage({
+        page,
+        perPage: fetchCount,
+        query,
+      });
+      if (res.items.length > 0) {
+        if (persistToPool) {
+          await this.hydratePoolAndPhotographers(
+            res.items,
+            query ?? "",
+            provider.providerName,
+          );
+        }
+        return res.items.slice(0, needed);
+      }
+    } catch {
+      // Upstream 429 or transient error -> fall back to fresh DB cache or next tier!
+    }
+
+    if (allowDbPoolFallback) {
+      try {
+        return await this.store.queryCachedImages({
+          page,
+          perPage: needed,
+          query,
+          provider: provider.providerName,
+        });
+      } catch {
+        return [];
+      }
+    }
+
+    return [];
+  }
+
   async getInfiniteFeed(params: {
     page: number;
     query?: string;
@@ -188,25 +295,27 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
     const page = Math.max(1, params.page);
     const query = params.query?.trim() || undefined;
 
-    // Explicit secondary provider selection (multi-provider extensibility!)
+    // Explicit secondary/tertiary provider selection (multi-provider extensibility!)
     if (
       params.provider &&
       params.provider !== this.primaryProvider.providerName
     ) {
       const altProvider = this.registry.get(params.provider);
       if (altProvider) {
-        const res = await this.coalesce(
+        const altItems = await this.coalesce(
           `alt:${altProvider.providerName}:${page}:${query ?? ""}`,
           () =>
-            altProvider.fetchPage({
+            this.fetchFromFallbackProvider({
+              provider: altProvider,
               page,
-              perPage: UNSPLASH_MAX_PER_PAGE,
+              needed: UNSPLASH_MAX_PER_PAGE,
               query,
+              persistToPool: true,
+              allowDbPoolFallback: true,
             }),
         );
-        await this.store.upsertCachedImages(res.items, query ?? "");
         const decorated = await this.attachSavedState(
-          res.items,
+          altItems,
           params.viewerUserId,
         );
         return {
@@ -238,7 +347,7 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
     const fetched = await this.coalesce(cacheKey, async () => {
       const quota = await this.getEffectiveQuota();
 
-      // Priority Lane P2: Fetch live 30-image batch when above reserve threshold
+      // Tier 1 (Primary — Unsplash): Fetch live 30-image batch when above reserve threshold
       if (quota.remaining > FEED_RESERVE_THRESHOLD) {
         try {
           const liveRes = await this.primaryProvider.fetchPage({
@@ -250,7 +359,11 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
             liveRes.rateLimitRemaining,
             liveRes.rateLimitLimit,
           );
-          await this.hydratePoolAndPhotographers(liveRes.items, query ?? "");
+          await this.hydratePoolAndPhotographers(
+            liveRes.items,
+            query ?? "",
+            this.primaryProvider.providerName,
+          );
 
           if (liveRes.items.length > 0) {
             this.l1FeedCache.set(cacheKey, {
@@ -266,20 +379,82 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
           if (err instanceof UpstreamQuotaExceededError) {
             await this.markQuotaExhausted();
           }
-          // Fall through seamlessly to Zero-429 Fallback Engine!
+          // Fall through seamlessly to Zero-429 Multi-Tier Fallback Engine!
         }
       }
 
-      // Zero-429 Fallback Step A: Serve from Persistent Neon DB Image Pool
-      let poolItems = await this.store.queryCachedImages({
+      // Zero-429 Fallback Step A: Serve from Persistent Neon DB Image Pool (Primary)
+      const poolItems = await this.store.queryCachedImages({
         page,
         perPage: UNSPLASH_MAX_PER_PAGE,
         query,
         provider: this.primaryProvider.providerName,
       });
 
-      // If high page number exceeds pool size, wrap around deterministically so Infinite Scroll stays smooth
-      if (poolItems.length === 0 && !query && page > 1) {
+      if (poolItems.length >= UNSPLASH_MAX_PER_PAGE) {
+        return {
+          items: poolItems.slice(0, UNSPLASH_MAX_PER_PAGE),
+          source: "cache_pool" as const,
+        };
+      }
+
+      let merged = [...poolItems];
+      let usedExternalFallback = false;
+
+      // Zero-429 Fallback Step B (Tier 2 — Secondary Provider: Pixabay via ENABLE_SECONDARY_PROVIDER)
+      if (
+        this.enableSecondaryFallback &&
+        merged.length < UNSPLASH_MAX_PER_PAGE
+      ) {
+        const secondary = this.registry.get(this.secondaryProviderName);
+        if (secondary) {
+          const secItems = await this.fetchFromFallbackProvider({
+            provider: secondary,
+            page,
+            needed: UNSPLASH_MAX_PER_PAGE - merged.length,
+            query,
+            persistToPool: true,
+            allowDbPoolFallback: true,
+          });
+          if (secItems.length > 0) {
+            merged = appendUniqueItems(
+              merged,
+              secItems,
+              UNSPLASH_MAX_PER_PAGE,
+            );
+            usedExternalFallback = true;
+          }
+        }
+      }
+
+      // Zero-429 Fallback Step C (Tier 3 — Tertiary Provider: Picsum via ENABLE_TERTIARY_PROVIDER)
+      if (
+        this.enableTertiaryFallback &&
+        merged.length < UNSPLASH_MAX_PER_PAGE
+      ) {
+        const tertiary = this.registry.get(this.tertiaryProviderName);
+        if (tertiary) {
+          const tertItems = await this.fetchFromFallbackProvider({
+            provider: tertiary,
+            page,
+            needed: UNSPLASH_MAX_PER_PAGE - merged.length,
+            query,
+            persistToPool: false,
+            allowDbPoolFallback: false,
+          });
+          if (tertItems.length > 0) {
+            merged = appendUniqueItems(
+              merged,
+              tertItems,
+              UNSPLASH_MAX_PER_PAGE,
+            );
+            usedExternalFallback = true;
+          }
+        }
+      }
+
+      // Deterministic wrap-around safety net if both Secondary & Tertiary are disabled/unavailable on deep pages
+      if (merged.length === 0 && !query && page > 1) {
         const allFirstPage = await this.store.queryCachedImages({
           page: 1,
           perPage: UNSPLASH_MAX_PER_PAGE,
@@ -287,46 +462,18 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
         });
         if (allFirstPage.length > 0) {
           const shift = ((page - 1) * 7) % allFirstPage.length;
-          poolItems = [
+          merged = [
             ...allFirstPage.slice(shift),
             ...allFirstPage.slice(0, shift),
           ];
         }
       }
 
-      if (poolItems.length >= UNSPLASH_MAX_PER_PAGE || !this.enableSecondaryFallback) {
-        return {
-          items: poolItems,
-          source: "cache_pool" as const,
-        };
-      }
-
-      // Zero-429 Fallback Step B: Supplement with secondary registered provider (e.g. Picsum)
-      const secondary = this.registry.get("picsum");
-      if (secondary) {
-        try {
-          const needed = UNSPLASH_MAX_PER_PAGE - poolItems.length;
-          const secRes = await secondary.fetchPage({
-            page,
-            perPage: needed,
-            query,
-          });
-          const merged = [...poolItems, ...secRes.items];
-          return {
-            items: merged,
-            source: "hybrid_fallback" as const,
-          };
-        } catch {
-          return {
-            items: poolItems,
-            source: "cache_pool" as const,
-          };
-        }
-      }
-
       return {
-        items: poolItems,
-        source: "cache_pool" as const,
+        items: merged,
+        source: usedExternalFallback
+          ? ("hybrid_fallback" as const)
+          : ("cache_pool" as const),
       };
     });
 
@@ -365,6 +512,19 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
         cleanUsername,
         UNSPLASH_MAX_PER_PAGE,
       );
+
+      // Secondary/Tertiary photographers (Pixabay / Picsum) resolve directly from cache with 0 Unsplash quota cost
+      if (
+        cachedProfile &&
+        cachedProfile.provider !== this.primaryProvider.providerName
+      ) {
+        return {
+          ...cachedProfile,
+          isFallbackCache: !cachedProfile.fullFetched,
+          updatedAt: cachedProfile.updatedAt.toISOString(),
+          photos: cachedPhotos,
+        };
+      }
 
       const isFresh =
         cachedProfile?.fullFetched &&
@@ -413,7 +573,11 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
             this.primaryProvider.providerName,
             true,
           );
-          await this.hydratePoolAndPhotographers(photosRes.items);
+          await this.hydratePoolAndPhotographers(
+            photosRes.items,
+            "",
+            this.primaryProvider.providerName,
+          );
 
           return {
             ...profRes.photographer,
@@ -483,6 +647,31 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
       ...detail,
       photos: decoratedPhotos,
     };
+  }
+
+  /**
+   * Complies with Pixabay's no-permanent-hotlinking & 24h URL expiry policy:
+   * downloads and stores saved Pixabay images onto server storage so Saved Frames
+   * and Community/Private Stories remain permanently accessible beyond 24 hours.
+   */
+  async resolvePermanentImageUrls(params: {
+    provider: string;
+    externalId: string;
+    imageUrl: string;
+    thumbUrl: string;
+  }): Promise<{ imageUrl: string; thumbUrl: string }> {
+    if (params.provider !== "pixabay" || !this.pixabayMediaStorage) {
+      return {
+        imageUrl: params.imageUrl,
+        thumbUrl: params.thumbUrl,
+      };
+    }
+
+    return this.pixabayMediaStorage.archiveSavedPair({
+      externalId: params.externalId,
+      imageUrl: params.imageUrl,
+      thumbUrl: params.thumbUrl,
+    });
   }
 
   async enqueueDownloadTrigger(params: {
@@ -573,7 +762,11 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
               this.primaryProvider.providerName,
               true,
             );
-            await this.hydratePoolAndPhotographers(photosRes.items);
+            await this.hydratePoolAndPhotographers(
+              photosRes.items,
+              "",
+              this.primaryProvider.providerName,
+            );
             await this.store.completeJob(job.id);
           } else {
             await this.store.completeJob(job.id);
@@ -596,6 +789,37 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
   }
 
   async getQuotaHealth(): Promise<QuotaHealthSummary> {
-    return this.store.getHealthCounts(this.primaryProvider.providerName);
+    const base = await this.store.getHealthCounts(
+      this.primaryProvider.providerName,
+    );
+    const secondary = this.registry.get(this.secondaryProviderName);
+    const tertiary = this.registry.get(this.tertiaryProviderName);
+
+    const secondaryTelemetry =
+      secondary instanceof PixabayImageProvider
+        ? secondary.getRateTelemetry()
+        : {
+            configured: Boolean(secondary),
+            remainingQuota: 100,
+            limitQuota: 100,
+            windowResetSeconds: 60,
+          };
+
+    return {
+      ...base,
+      secondaryProvider: {
+        provider: this.secondaryProviderName,
+        enabled: this.enableSecondaryFallback,
+        configured: secondaryTelemetry.configured,
+        remainingQuota: secondaryTelemetry.remainingQuota,
+        limitQuota: secondaryTelemetry.limitQuota,
+        windowResetSeconds: secondaryTelemetry.windowResetSeconds,
+        cacheTtlHours: Math.round(PIXABAY_CACHE_TTL_MS / 3_600_000),
+      },
+      tertiaryProvider: {
+        provider: this.tertiaryProviderName,
+        enabled: this.enableTertiaryFallback && Boolean(tertiary),
+      },
+    };
   }
 }

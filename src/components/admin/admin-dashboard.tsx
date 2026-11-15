@@ -365,6 +365,37 @@ export function AdminConsoleDashboard({
                   </p>
                 </div>
               </div>
+
+              {(stats.quota.secondaryProvider ||
+                stats.quota.tertiaryProvider) && (
+                <div className="space-y-1.5 border-t border-border/60 pt-3 text-[11px]">
+                  {stats.quota.secondaryProvider && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground">
+                        Secondary ({stats.quota.secondaryProvider.provider})
+                      </span>
+                      <span className="font-medium tabular-nums">
+                        {stats.quota.secondaryProvider.enabled &&
+                        stats.quota.secondaryProvider.configured
+                          ? `${stats.quota.secondaryProvider.remainingQuota}/${stats.quota.secondaryProvider.limitQuota} per 60s · ${stats.quota.secondaryProvider.cacheTtlHours}h cache`
+                          : "Disabled"}
+                      </span>
+                    </div>
+                  )}
+                  {stats.quota.tertiaryProvider && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground">
+                        Tertiary ({stats.quota.tertiaryProvider.provider})
+                      </span>
+                      <span className="font-medium">
+                        {stats.quota.tertiaryProvider.enabled
+                          ? "Active resilience"
+                          : "Disabled"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

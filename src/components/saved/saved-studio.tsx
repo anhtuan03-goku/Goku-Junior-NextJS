@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm, useWatch } from "react-hook-form";
 import {
   Globe,
   Heart,
@@ -25,6 +27,10 @@ import { Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/primitives";
 import type { PostViewItem, PostVisibility } from "@/domain/entities/models";
 import { cn, formatMinimalDateTime } from "@/lib/utils";
+import {
+  type StoryPostFormValues,
+  createStoryPostSchema,
+} from "@/lib/validations/forms";
 
 export interface ClientSavedImageItem {
   id: string;
@@ -51,22 +57,46 @@ export function SavedMultiPostStudio({
   initialItems: ClientSavedImageItem[];
   initialHighlightId?: string;
 }) {
-  const { showPhotographerInfo } = useAppSession();
+  const { showPhotographerInfo, locale, t, tr } = useAppSession();
   const [items, setItems] = useState<ClientSavedImageItem[]>(initialItems);
   const [selectedId, setSelectedId] = useState<string | null>(
     initialHighlightId ?? null,
   );
-
-  // New post composer state (1 saved image -> Many posts!)
-  const [newContent, setNewContent] = useState("");
-  const [newVisibility, setNewVisibility] = useState<PostVisibility>("PRIVATE");
-  const [creatingPost, setCreatingPost] = useState(false);
 
   // Editing existing post state
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
   const [busyPostId, setBusyPostId] = useState<string | null>(null);
   const [unsavingId, setUnsavingId] = useState<string | null>(null);
+
+  const storySchema = useMemo(() => createStoryPostSchema(locale), [locale]);
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    setValue,
+    reset,
+    trigger,
+    formState: { errors, isSubmitting, touchedFields },
+  } = useForm<StoryPostFormValues>({
+    resolver: zodResolver(storySchema),
+    mode: "onTouched",
+    reValidateMode: "onChange",
+    defaultValues: {
+      content: "",
+      visibility: "PRIVATE",
+    },
+  });
+
+  useEffect(() => {
+    if (Object.keys(touchedFields).length > 0) {
+      void trigger();
+    }
+  }, [locale, touchedFields, trigger]);
+
+  const watchedContent = useWatch({ control, name: "content" });
+  const watchedVisibility = useWatch({ control, name: "visibility" });
 
   const [prevHighlightId, setPrevHighlightId] = useState<string | undefined>(
     initialHighlightId,
@@ -80,23 +110,17 @@ export function SavedMultiPostStudio({
 
   const selectedItem = items.find((i) => i.id === selectedId) ?? null;
 
-  async function handleCreatePost(e: React.FormEvent) {
-    e.preventDefault();
-    if (!selectedItem || creatingPost) return;
-    if (!newContent.trim()) {
-      toast.error("Please write something before publishing.");
-      return;
-    }
+  async function onSubmitCreatePost(values: StoryPostFormValues) {
+    if (!selectedItem) return;
 
-    setCreatingPost(true);
     try {
       const res = await fetch("/api/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           savedImageId: selectedItem.id,
-          content: newContent.trim(),
-          visibility: newVisibility,
+          content: values.content.trim(),
+          visibility: values.visibility,
         }),
       });
       const data = (await res.json()) as {
@@ -114,16 +138,20 @@ export function SavedMultiPostStudio({
             : it,
         ),
       );
-      setNewContent("");
+      reset({ content: "", visibility: values.visibility });
       toast.success(
-        newVisibility === "PUBLIC"
-          ? "Published to Community Journal!"
-          : "Saved as a Private journal note!",
+        values.visibility === "PUBLIC"
+          ? locale === "vi"
+            ? "Đã xuất bản lên Nhật Ký Cộng Đồng!"
+            : "Published to Community Journal!"
+          : locale === "vi"
+            ? "Đã lưu thành ghi chú Riêng tư!"
+            : "Saved as a Private journal note!",
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      setCreatingPost(false);
+      toast.error(
+        tr(err instanceof Error ? err.message : "Something went wrong."),
+      );
     }
   }
 
@@ -155,11 +183,17 @@ export function SavedMultiPostStudio({
       );
       toast.success(
         nextVis === "PUBLIC"
-          ? "Story is now Public."
-          : "Story is now Private.",
+          ? locale === "vi"
+            ? "Câu chuyện đã chuyển sang Công khai."
+            : "Story is now Public."
+          : locale === "vi"
+            ? "Câu chuyện đã chuyển sang Riêng tư."
+            : "Story is now Private.",
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong.");
+      toast.error(
+        tr(err instanceof Error ? err.message : "Something went wrong."),
+      );
     } finally {
       setBusyPostId(null);
     }
@@ -191,9 +225,13 @@ export function SavedMultiPostStudio({
       );
       setEditingPostId(null);
       setEditingContent("");
-      toast.success("Story updated.");
+      toast.success(
+        locale === "vi" ? "Đã cập nhật câu chuyện." : "Story updated.",
+      );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong.");
+      toast.error(
+        tr(err instanceof Error ? err.message : "Something went wrong."),
+      );
     } finally {
       setBusyPostId(null);
     }
@@ -218,9 +256,13 @@ export function SavedMultiPostStudio({
           posts: img.posts.filter((p) => p.id !== postId),
         })),
       );
-      toast.success("Story deleted.");
+      toast.success(
+        locale === "vi" ? "Đã xoá câu chuyện." : "Story deleted.",
+      );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong.");
+      toast.error(
+        tr(err instanceof Error ? err.message : "Something went wrong."),
+      );
     } finally {
       setBusyPostId(null);
     }
@@ -242,90 +284,111 @@ export function SavedMultiPostStudio({
       if (selectedId === savedImageId) {
         setSelectedId(null);
       }
-      toast.success("Removed frame from your collection.");
+      toast.success(
+        locale === "vi"
+          ? "Đã gỡ khung hình khỏi bộ sưu tập."
+          : "Removed frame from your collection.",
+      );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong.");
+      toast.error(
+        tr(err instanceof Error ? err.message : "Something went wrong."),
+      );
     } finally {
       setUnsavingId(null);
     }
   }
 
-  if (items.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-border py-20 text-center space-y-3">
-        <p className="text-sm font-medium">Your saved collection is empty</p>
-        <p className="text-xs text-muted-foreground">
-          Explore curated frames and save the ones that move you to start
-          writing Private or Public stories.
-        </p>
-        <Button variant="outline" size="sm" asChild>
-          <Link href="/">Explore frames</Link>
-        </Button>
-      </div>
-    );
-  }
-
   return (
-    <>
-      <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4">
-        {items.map((item) => {
-          const pubCount = item.posts.filter(
-            (p) => p.visibility === "PUBLIC",
-          ).length;
-          const privCount = item.posts.length - pubCount;
-
-          return (
-            <article
-              key={item.id}
-              onClick={() => setSelectedId(item.id)}
-              className="group mb-4 break-inside-avoid cursor-pointer overflow-hidden rounded-xl border border-border bg-card transition-all hover:border-foreground/40"
-            >
-              <div
-                style={{
-                  aspectRatio: `${Math.max(item.width || 4, 1)} / ${Math.max(item.height || 5, 1)}`,
-                  backgroundColor: item.color ?? undefined,
-                }}
-                className="relative w-full overflow-hidden bg-muted"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={item.thumbUrl}
-                  alt={item.description ?? "Saved frame"}
-                  loading="lazy"
-                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-                />
-              </div>
-
-              <div className="p-3.5 space-y-2">
-                {showPhotographerInfo && item.photographerName && (
-                  <p className="truncate text-[11px] text-muted-foreground">
-                    Author: {item.photographerName}
-                  </p>
-                )}
-
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <Badge variant="secondary">
-                      {item.posts.length}{" "}
-                      {item.posts.length === 1 ? "story" : "stories"}
-                    </Badge>
-                    {pubCount > 0 && (
-                      <Badge variant="outline">{pubCount} Public</Badge>
-                    )}
-                    {privCount > 0 && (
-                      <Badge variant="outline">{privCount} Private</Badge>
-                    )}
-                  </div>
-
-                  <span className="text-[11px] font-medium text-foreground underline underline-offset-4">
-                    Write / Manage →
-                  </span>
-                </div>
-              </div>
-            </article>
-          );
-        })}
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
+          {t.saved.heading}
+        </h1>
+        <p className="text-xs sm:text-sm text-muted-foreground">
+          {t.saved.subheading}
+        </p>
       </div>
+
+      {items.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border py-20 text-center space-y-3">
+          <p className="text-sm font-medium">{t.saved.emptyTitle}</p>
+          <p className="text-xs text-muted-foreground">
+            {t.saved.emptySubtitle}
+          </p>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/">{t.saved.exploreBtn}</Link>
+          </Button>
+        </div>
+      ) : (
+        <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4">
+          {items.map((item) => {
+            const pubCount = item.posts.filter(
+              (p) => p.visibility === "PUBLIC",
+            ).length;
+            const privCount = item.posts.length - pubCount;
+
+            return (
+              <article
+                key={item.id}
+                onClick={() => setSelectedId(item.id)}
+                className="group mb-4 break-inside-avoid cursor-pointer overflow-hidden rounded-xl border border-border bg-card transition-all hover:border-foreground/40"
+              >
+                <div
+                  style={{
+                    aspectRatio: `${Math.max(item.width || 4, 1)} / ${Math.max(item.height || 5, 1)}`,
+                    backgroundColor: item.color ?? undefined,
+                  }}
+                  className="relative w-full overflow-hidden bg-muted"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={item.thumbUrl}
+                    alt={item.description ?? "Saved frame"}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+                  />
+                </div>
+
+                <div className="p-3.5 space-y-2">
+                  {showPhotographerInfo && item.photographerName && (
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {item.provider === "nasa"
+                        ? `Image Credit: ${item.photographerName}`
+                        : `${t.nav.author}: ${item.photographerName}`}
+                    </p>
+                  )}
+
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="secondary">
+                        {item.posts.length}{" "}
+                        {item.posts.length === 1
+                          ? t.saved.storySingular
+                          : t.saved.storyPlural}
+                      </Badge>
+                      {pubCount > 0 && (
+                        <Badge variant="outline">
+                          {pubCount} {t.saved.publicBadge}
+                        </Badge>
+                      )}
+                      {privCount > 0 && (
+                        <Badge variant="outline">
+                          {privCount} {t.saved.privateBadge}
+                        </Badge>
+                      )}
+                    </div>
+
+                    <span className="text-[11px] font-medium text-foreground underline underline-offset-4">
+                      {t.saved.writeManage}
+                    </span>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
 
       {/* 1-to-Many Multi-Post Studio Modal */}
       <Dialog
@@ -334,17 +397,15 @@ export function SavedMultiPostStudio({
           if (!open) {
             setSelectedId(null);
             setEditingPostId(null);
+            reset({ content: "", visibility: watchedVisibility });
           }
         }}
       >
         {selectedItem && (
           <DialogContent className="max-w-3xl p-4 sm:p-6">
             <DialogHeader>
-              <DialogTitle>Story Studio</DialogTitle>
-              <DialogDescription>
-                Write multiple independent stories on the same saved frame,
-                refine your notes, or toggle Private ↔ Public anytime.
-              </DialogDescription>
+              <DialogTitle>{t.saved.studioTitle}</DialogTitle>
+              <DialogDescription>{t.saved.studioDesc}</DialogDescription>
             </DialogHeader>
 
             <div className="grid grid-cols-1 md:grid-cols-12 gap-5 pt-1">
@@ -364,9 +425,12 @@ export function SavedMultiPostStudio({
 
                 {showPhotographerInfo && selectedItem.photographerName && (
                   <div className="text-xs text-muted-foreground">
-                    Photographer:{" "}
+                    {selectedItem.provider === "nasa"
+                      ? "Image Credit: "
+                      : `${t.nav.author}: `}
                     {selectedItem.photographerUsername &&
-                    selectedItem.provider === "unsplash" ? (
+                    (selectedItem.provider === "unsplash" ||
+                      selectedItem.provider === "pixabay") ? (
                       <Link
                         href={`/photographers/${encodeURIComponent(selectedItem.photographerUsername)}`}
                         className="font-medium text-foreground underline underline-offset-4"
@@ -377,6 +441,19 @@ export function SavedMultiPostStudio({
                       <span className="font-medium text-foreground">
                         {selectedItem.photographerName}
                       </span>
+                    )}
+                    {selectedItem.provider === "pixabay" && (
+                      <>
+                        {" · "}
+                        <a
+                          href="https://pixabay.com/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline underline-offset-4 hover:text-foreground"
+                        >
+                          Pixabay
+                        </a>
+                      </>
                     )}
                   </div>
                 )}
@@ -389,70 +466,101 @@ export function SavedMultiPostStudio({
                   onClick={() => void handleUnsaveImage(selectedItem.id)}
                 >
                   <Trash2 className="size-3.5" />
-                  Unsave frame (deletes {selectedItem.posts.length}{" "}
-                  {selectedItem.posts.length === 1 ? "story" : "stories"})
+                  {t.saved.unsaveBtn.replace(
+                    "{count}",
+                    String(selectedItem.posts.length),
+                  )}
                 </Button>
               </div>
 
-              {/* Multi-Post Composer & List column */}
+              {/* Multi-Post Composer & List column (React Hook Form + Zod) */}
               <div className="md:col-span-7 space-y-5">
                 <form
-                  onSubmit={(e) => void handleCreatePost(e)}
+                  noValidate
+                  onSubmit={(e) => void handleSubmit(onSubmitCreatePost)(e)}
                   className="space-y-3 rounded-lg border border-border p-3.5 bg-secondary/25"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-xs font-semibold">
-                      New story for this frame
+                      {t.saved.newStoryTitle}
                     </span>
                     <div className="inline-flex rounded-md border border-border p-0.5 bg-background">
                       <button
                         type="button"
-                        onClick={() => setNewVisibility("PRIVATE")}
+                        onClick={() =>
+                          setValue("visibility", "PRIVATE", {
+                            shouldDirty: true,
+                          })
+                        }
                         className={cn(
                           "inline-flex min-h-9 items-center gap-1 rounded px-3 py-1 text-[11px] font-medium cursor-pointer transition-all active:scale-95",
-                          newVisibility === "PRIVATE"
+                          watchedVisibility === "PRIVATE"
                             ? "bg-primary text-primary-foreground"
                             : "text-muted-foreground hover:text-foreground",
                         )}
                       >
                         <Lock className="size-3" />
-                        Private
+                        {t.saved.privateBtn}
                       </button>
                       <button
                         type="button"
-                        onClick={() => setNewVisibility("PUBLIC")}
+                        onClick={() =>
+                          setValue("visibility", "PUBLIC", {
+                            shouldDirty: true,
+                          })
+                        }
                         className={cn(
                           "inline-flex min-h-9 items-center gap-1 rounded px-3 py-1 text-[11px] font-medium cursor-pointer transition-all active:scale-95",
-                          newVisibility === "PUBLIC"
+                          watchedVisibility === "PUBLIC"
                             ? "bg-primary text-primary-foreground"
                             : "text-muted-foreground hover:text-foreground",
                         )}
                       >
                         <Globe className="size-3" />
-                        Public
+                        {t.saved.publicBtn}
                       </button>
                     </div>
                   </div>
 
-                  <Textarea
-                    value={newContent}
-                    onChange={(e) => setNewContent(e.target.value)}
-                    maxLength={2000}
-                    placeholder="Capture a reflection, mood, or story inspired by this frame..."
-                    className="min-h-20 bg-background text-xs sm:text-sm"
-                  />
+                  <div className="space-y-1.5">
+                    <Textarea
+                      maxLength={2050}
+                      placeholder={t.saved.storyPlaceholder}
+                      aria-invalid={Boolean(errors.content) || undefined}
+                      className={cn(
+                        "min-h-20 bg-background text-xs sm:text-sm",
+                        errors.content &&
+                          "border-destructive focus-visible:border-destructive",
+                      )}
+                      {...register("content")}
+                    />
+                    {errors.content?.message && (
+                      <p
+                        role="alert"
+                        className="text-[11px] font-medium text-destructive"
+                      >
+                        {errors.content.message}
+                      </p>
+                    )}
+                  </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-muted-foreground">
-                      {newContent.length}/2000 characters
+                    <span className="text-[11px] tabular-nums text-muted-foreground">
+                      {watchedContent.length}/2000 {t.saved.charactersCount}
                     </span>
-                    <Button type="submit" size="sm" disabled={creatingPost}>
-                      {creatingPost ? (
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={isSubmitting || Boolean(errors.content)}
+                    >
+                      {isSubmitting ? (
                         <Loader2 className="size-3.5 animate-spin" />
                       ) : (
                         <Plus className="size-3.5" />
                       )}
-                      Save story
+                      {isSubmitting
+                        ? t.saved.savingStoryBtn
+                        : t.saved.saveStoryBtn}
                     </Button>
                   </div>
                 </form>
@@ -460,12 +568,15 @@ export function SavedMultiPostStudio({
                 {/* Existing posts list on this saved image */}
                 <div className="space-y-2.5">
                   <h3 className="text-xs font-medium text-muted-foreground">
-                    Stories on this frame ({selectedItem.posts.length})
+                    {t.saved.storiesListHeading.replace(
+                      "{count}",
+                      String(selectedItem.posts.length),
+                    )}
                   </h3>
 
                   {selectedItem.posts.length === 0 ? (
                     <p className="rounded-lg border border-dashed border-border py-6 text-center text-xs text-muted-foreground">
-                      No stories written for this frame yet.
+                      {t.saved.noStoriesYet}
                     </p>
                   ) : (
                     <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
@@ -486,7 +597,6 @@ export function SavedMultiPostStudio({
                                   onClick={() =>
                                     void handleToggleVisibility(post)
                                   }
-                                  title="Click to toggle Private ↔ Public"
                                   className={cn(
                                     "inline-flex min-h-9 items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-medium cursor-pointer transition-all active:scale-95",
                                     post.visibility === "PUBLIC"
@@ -497,12 +607,12 @@ export function SavedMultiPostStudio({
                                   {post.visibility === "PUBLIC" ? (
                                     <>
                                       <Globe className="size-3" />
-                                      Public (Click to hide)
+                                      {t.saved.publicClickToHide}
                                     </>
                                   ) : (
                                     <>
                                       <Lock className="size-3" />
-                                      Private (Click to publish)
+                                      {t.saved.privateClickToPublish}
                                     </>
                                   )}
                                 </button>
@@ -510,7 +620,9 @@ export function SavedMultiPostStudio({
                                 <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                                   <Heart className="size-3" />
                                   {post.likesCount}{" "}
-                                  {post.likesCount === 1 ? "heart" : "hearts"}
+                                  {post.likesCount === 1
+                                    ? t.saved.heartSingular
+                                    : t.saved.heartPlural}
                                 </span>
                               </div>
 
@@ -539,15 +651,17 @@ export function SavedMultiPostStudio({
                                       setEditingContent("");
                                     }}
                                   >
-                                    Cancel
+                                    {t.saved.cancelBtn}
                                   </Button>
                                   <Button
                                     type="button"
                                     size="sm"
-                                    disabled={isBusy}
+                                    disabled={
+                                      isBusy || !editingContent.trim()
+                                    }
                                     onClick={() => void handleSaveEdit(post.id)}
                                   >
-                                    Save changes
+                                    {t.saved.saveChangesBtn}
                                   </Button>
                                 </div>
                               </div>
@@ -570,7 +684,7 @@ export function SavedMultiPostStudio({
                                   }}
                                 >
                                   <Pencil className="size-3.5" />
-                                  Edit
+                                  {t.saved.editBtn}
                                 </Button>
                                 <Button
                                   type="button"
@@ -581,7 +695,7 @@ export function SavedMultiPostStudio({
                                   onClick={() => void handleDeletePost(post.id)}
                                 >
                                   <Trash2 className="size-3.5" />
-                                  Delete
+                                  {t.saved.deleteBtn}
                                 </Button>
                               </div>
                             )}
@@ -596,6 +710,6 @@ export function SavedMultiPostStudio({
           </DialogContent>
         )}
       </Dialog>
-    </>
+    </div>
   );
 }

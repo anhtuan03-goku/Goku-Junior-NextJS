@@ -4,6 +4,7 @@ import { toSafeUserDTO } from "@/application/dtos/mappers";
 import { ProfileSettingsPanel } from "@/components/profile/profile-settings";
 import { getOptionalSessionUser } from "@/interfaces/http/api-helpers";
 
+// Protected SSR: Requires verified JWT session cookie & fresh `sessionVersion`
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
@@ -23,17 +24,7 @@ export default async function SettingsPage() {
   }
 
   return (
-    <section className="space-y-6">
-      <div className="mx-auto max-w-2xl space-y-1">
-        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
-          Profile Settings
-        </h1>
-        <p className="text-xs sm:text-sm text-muted-foreground">
-          Manage your unique username, password, photographer attribution
-          preferences, and avatar.
-        </p>
-      </div>
-
+    <section>
       <ProfileSettingsPanel initialUser={toSafeUserDTO(user)} />
     </section>
   );

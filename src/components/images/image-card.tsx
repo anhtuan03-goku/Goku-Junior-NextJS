@@ -29,6 +29,13 @@ export type DecoratedFeedImage = ExternalImageItem & {
   savedImageId: string | null;
 };
 
+function getProviderDisplayName(provider: string): string {
+  if (provider === "nasa") return "NASA";
+  if (provider === "pixabay") return "Pixabay";
+  if (provider === "picsum") return "Picsum";
+  return "Unsplash";
+}
+
 export function MinimalImageCard({
   item,
   onSaveStateChange,
@@ -41,7 +48,7 @@ export function MinimalImageCard({
   ) => void;
 }) {
   const router = useRouter();
-  const { user, showPhotographerInfo } = useAppSession();
+  const { user, showPhotographerInfo, t, tr } = useAppSession();
   const [saved, setSaved] = useState(item.savedByMe);
   const [savedId, setSavedId] = useState<string | null>(item.savedImageId);
   const [prevUserId, setPrevUserId] = useState<string | null>(user?.id ?? null);
@@ -65,7 +72,7 @@ export function MinimalImageCard({
   async function handleToggleSave(e: React.MouseEvent) {
     e.stopPropagation();
     if (!user) {
-      toast.info("Please sign in to save frames to your collection.");
+      toast.info(t.imageCard.signInToSave);
       router.push("/login");
       return;
     }
@@ -82,7 +89,7 @@ export function MinimalImageCard({
         setSaved(false);
         setSavedId(null);
         onSaveStateChange?.(itemKey, false, null);
-        toast.success("Removed from your saved frames.");
+        toast.success(t.imageCard.removedSuccess);
       } else {
         const res = await fetch("/api/saved", {
           method: "POST",
@@ -113,19 +120,30 @@ export function MinimalImageCard({
         setSaved(true);
         setSavedId(data.savedImage.id);
         onSaveStateChange?.(itemKey, true, data.savedImage.id);
-        toast.success("Saved to your personal collection.");
+        toast.success(t.imageCard.savedSuccess);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong.");
+      toast.error(
+        tr(err instanceof Error ? err.message : "Something went wrong."),
+      );
     } finally {
       setBusy(false);
     }
   }
 
   const photographerHref =
-    item.photographer && item.provider === "unsplash"
+    item.photographer &&
+    (item.provider === "unsplash" || item.provider === "pixabay")
       ? `/photographers/${encodeURIComponent(item.photographer.username)}`
       : null;
+  const pixabaySourceUrl =
+    item.provider === "pixabay"
+      ? (item.photographer?.portfolioUrl ?? "https://pixabay.com/")
+      : null;
+  const isNasa = item.provider === "nasa";
+  const nasaSourceUrl = isNasa
+    ? (item.photographer?.profileUrl ?? "https://images.nasa.gov/")
+    : null;
 
   return (
     <>
@@ -151,7 +169,7 @@ export function MinimalImageCard({
             type="button"
             disabled={busy}
             onClick={(e) => void handleToggleSave(e)}
-            aria-label={saved ? "Remove from saved frames" : "Save frame"}
+            aria-label={saved ? t.imageCard.removeSaved : t.imageCard.saveFrame}
             className={cn(
               "absolute top-2.5 right-2.5 inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-xs font-medium backdrop-blur-md transition-all active:scale-95 cursor-pointer",
               saved
@@ -162,12 +180,12 @@ export function MinimalImageCard({
             {saved ? (
               <>
                 <Check className="size-3.5" />
-                <span>Saved</span>
+                <span>{t.imageCard.saved}</span>
               </>
             ) : (
               <>
                 <Bookmark className="size-3.5" />
-                <span>Save</span>
+                <span>{t.imageCard.save}</span>
               </>
             )}
           </button>
@@ -197,20 +215,48 @@ export function MinimalImageCard({
                   size="xs"
                 />
                 <span className="truncate font-medium text-foreground/90">
-                  {item.photographer.name}
+                  {isNasa
+                    ? `Image Credit: ${item.photographer.name}`
+                    : item.photographer.name}
                 </span>
               </div>
             )}
 
-            {photographerHref && (
-              <Link
-                href={photographerHref}
-                className="text-[11px] text-muted-foreground hover:text-foreground shrink-0"
-                title="View photographer profile"
-              >
-                Profile →
-              </Link>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              {nasaSourceUrl && (
+                <a
+                  href={nasaSourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-4"
+                  title="Official NASA archive source"
+                >
+                  NASA
+                </a>
+              )}
+              {pixabaySourceUrl && (
+                <a
+                  href={pixabaySourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-4"
+                  title="Image source: Pixabay"
+                >
+                  Pixabay
+                </a>
+              )}
+              {photographerHref && (
+                <Link
+                  href={photographerHref}
+                  className="text-[11px] text-muted-foreground hover:text-foreground"
+                  title={t.imageCard.authorProfile}
+                >
+                  {t.imageCard.profileLink}
+                </Link>
+              )}
+            </div>
           </div>
         )}
       </article>
@@ -219,10 +265,14 @@ export function MinimalImageCard({
         <DialogContent className="max-w-4xl p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="font-medium text-sm truncate pr-8">
-              {item.description || "Minimalist frame"}
+              {isNasa && item.description?.includes(" — ")
+                ? item.description.split(" — ")[0]
+                : item.description || "Minimalist frame"}
             </DialogTitle>
-            <DialogDescription>
-              {item.width} × {item.height}px
+            <DialogDescription className="line-clamp-3 text-xs">
+              {isNasa && item.description?.includes(" — ")
+                ? `${item.description.split(" — ").slice(1).join(" — ")} · ${item.width} × ${item.height}px`
+                : `${item.width} × ${item.height}px`}
             </DialogDescription>
           </DialogHeader>
 
@@ -248,12 +298,16 @@ export function MinimalImageCard({
                 />
                 <div className="min-w-0 text-xs">
                   <p className="truncate font-medium">
-                    {item.photographer.name}
+                    {isNasa
+                      ? `Image Credit: ${item.photographer.name}`
+                      : item.photographer.name}
                   </p>
                   <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
-                    <span className="truncate">
-                      @{item.photographer.username}
-                    </span>
+                    {!isNasa && (
+                      <span className="truncate">
+                        @{item.photographer.username}
+                      </span>
+                    )}
                     {photographerHref && (
                       <Link
                         href={photographerHref}
@@ -261,7 +315,7 @@ export function MinimalImageCard({
                         className="inline-flex items-center gap-1 underline underline-offset-4 text-foreground"
                       >
                         <UserIcon className="size-3" />
-                        Author profile
+                        {t.imageCard.authorProfile}
                       </Link>
                     )}
                     {item.photographer.profileUrl && (
@@ -271,7 +325,18 @@ export function MinimalImageCard({
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-0.5 hover:text-foreground"
                       >
-                        Unsplash <ExternalLink className="size-3" />
+                        {getProviderDisplayName(item.provider)}{" "}
+                        <ExternalLink className="size-3" />
+                      </a>
+                    )}
+                    {pixabaySourceUrl && (
+                      <a
+                        href="https://pixabay.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-0.5 hover:text-foreground underline underline-offset-4"
+                      >
+                        Source: Pixabay
                       </a>
                     )}
                   </div>
@@ -279,7 +344,20 @@ export function MinimalImageCard({
               </div>
             ) : (
               <span className="text-xs text-muted-foreground">
-                Author attribution is currently hidden
+                {t.imageCard.authorHidden}
+                {pixabaySourceUrl && (
+                  <>
+                    {" · "}
+                    <a
+                      href="https://pixabay.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-4 hover:text-foreground"
+                    >
+                      Source: Pixabay
+                    </a>
+                  </>
+                )}
               </span>
             )}
 
@@ -291,7 +369,7 @@ export function MinimalImageCard({
                     onClick={() => setOpenPreview(false)}
                   >
                     <PenLine className="size-3.5" />
-                    Write post
+                    {t.imageCard.writePost}
                   </Link>
                 </Button>
               )}
@@ -304,12 +382,12 @@ export function MinimalImageCard({
                 {saved ? (
                   <>
                     <Check className="size-3.5" />
-                    Saved
+                    {t.imageCard.saved}
                   </>
                 ) : (
                   <>
                     <Bookmark className="size-3.5" />
-                    Save frame
+                    {t.imageCard.saveFrame}
                   </>
                 )}
               </Button>

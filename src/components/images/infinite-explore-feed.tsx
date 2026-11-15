@@ -2,11 +2,12 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { Skeleton } from "@/components/ui/primitives";
 import {
   type DecoratedFeedImage,
   MinimalImageCard,
 } from "@/components/images/image-card";
+import { useAppSession } from "@/components/providers/app-providers";
+import { Skeleton } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 
 export function InfiniteExploreFeed({
@@ -16,6 +17,7 @@ export function InfiniteExploreFeed({
   initialItems: DecoratedFeedImage[];
   initialHasMore: boolean;
 }) {
+  const { t } = useAppSession();
   const [items, setItems] = useState<DecoratedFeedImage[]>(initialItems);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(initialHasMore);
@@ -107,9 +109,7 @@ export function InfiniteExploreFeed({
         </div>
       ) : items.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border py-20 text-center">
-          <p className="text-sm text-muted-foreground">
-            No frames available right now. Please refresh in a moment.
-          </p>
+          <p className="text-sm text-muted-foreground">{t.explore.empty}</p>
         </div>
       ) : (
         <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-4">
@@ -130,7 +130,7 @@ export function InfiniteExploreFeed({
       >
         {loading && items.length > 0 && (
           <Loader2
-            aria-label="Loading more frames"
+            aria-label={t.explore.loadingMore}
             className="size-4 animate-spin text-muted-foreground"
           />
         )}

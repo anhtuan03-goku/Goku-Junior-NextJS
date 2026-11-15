@@ -17,6 +17,7 @@
     "qc": "pnpm typecheck && pnpm test"
   },
   "dependencies": {
+    "@hookform/resolvers": "^7.0.6",
     "@neondatabase/serverless": "^1.2.1",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
@@ -30,6 +31,7 @@
     "radix-ui": "^1.8.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "react-hook-form": "^7.92.0",
     "server-only": "^0.0.1",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.0",

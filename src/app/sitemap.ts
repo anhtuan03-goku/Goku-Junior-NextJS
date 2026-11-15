@@ -1,6 +1,9 @@
 import type { MetadataRoute } from "next";
 import { getSiteUrl } from "@/lib/site-config";
 
+// ISR: Revalidate XML sitemap every 1 hour (3600s) for search crawlers
+export const revalidate = 3600;
+
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = getSiteUrl().origin;
   const now = new Date();
@@ -11,6 +14,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: now,
       changeFrequency: "hourly",
       priority: 1.0,
+    },
+    {
+      url: `${baseUrl}/space`,
+      lastModified: now,
+      changeFrequency: "hourly",
+      priority: 0.9,
     },
     {
       url: `${baseUrl}/community`,

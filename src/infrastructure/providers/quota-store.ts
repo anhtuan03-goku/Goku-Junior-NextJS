@@ -4,9 +4,11 @@ import {
   count,
   desc,
   eq,
+  gt,
   ilike,
   inArray,
   lte,
+  ne,
   or,
   sql,
 } from "drizzle-orm";
@@ -22,6 +24,7 @@ import {
   providerRateState,
   unsplashJobQueue,
 } from "../db/schema";
+import { PIXABAY_CACHE_TTL_MS } from "./pixabay-provider";
 
 export interface StoredPhotographerRecord extends PhotographerSummary {
   provider: string;
@@ -235,6 +238,15 @@ export class PostgresQuotaPersistenceStore implements IQuotaPersistenceStore {
     const offset = Math.max(0, (params.page - 1) * params.perPage);
     const conditions = [];
 
+    const pixabayFreshFloor = new Date(Date.now() - PIXABAY_CACHE_TTL_MS);
+    // Pixabay signed image URLs expire after 24 hours; never serve expired Pixabay cache entries
+    conditions.push(
+      or(
+        ne(cachedImages.provider, "pixabay"),
+        gt(cachedImages.fetchedAt, pixabayFreshFloor),
+      )!,
+    );
+
     if (params.provider) {
       conditions.push(eq(cachedImages.provider, params.provider));
     }
@@ -303,10 +315,19 @@ export class PostgresQuotaPersistenceStore implements IQuotaPersistenceStore {
     username: string,
     limit: number,
   ): Promise<ExternalImageItem[]> {
+    const pixabayFreshFloor = new Date(Date.now() - PIXABAY_CACHE_TTL_MS);
     const rows = await db
       .select()
       .from(cachedImages)
-      .where(ilike(cachedImages.photographerUsername, username))
+      .where(
+        and(
+          ilike(cachedImages.photographerUsername, username),
+          or(
+            ne(cachedImages.provider, "pixabay"),
+            gt(cachedImages.fetchedAt, pixabayFreshFloor),
+          ),
+        ),
+      )
       .orderBy(desc(cachedImages.fetchedAt))
       .limit(limit);
 

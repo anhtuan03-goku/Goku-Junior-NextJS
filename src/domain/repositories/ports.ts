@@ -11,6 +11,7 @@ import type {
   QuotaHealthSummary,
   SavedImage,
   SavedImageWithPosts,
+  SpaceFeedResponseDTO,
   User,
   UserRole,
 } from "../entities/models";
@@ -125,6 +126,30 @@ export interface FeedResponseDTO {
   source: "live" | "cache_pool" | "hybrid_fallback";
 }
 
+export interface NasaSpaceQuery {
+  page: number;
+  perPage: number;
+  query?: string;
+  yearStart?: number;
+  yearEnd?: number;
+}
+
+export interface NasaSpaceProviderResult {
+  items: ExternalImageItem[];
+  hasMore: boolean;
+}
+
+/**
+ * Isolated NASA Space imagery port.
+ * Completely independent of Unsplash, Pixabay, Picsum, and multi-provider fallback pools.
+ */
+export interface INasaSpaceProvider {
+  readonly providerName: "nasa";
+  fetchSpacePage(params: NasaSpaceQuery): Promise<NasaSpaceProviderResult>;
+}
+
+export type { SpaceFeedResponseDTO };
+
 export interface IImageFeedOrchestrator {
   getInfiniteFeed(params: {
     page: number;
@@ -147,6 +172,12 @@ export interface IImageFeedOrchestrator {
     externalId: string;
     downloadLocation: string | null;
   }): Promise<void>;
+  resolvePermanentImageUrls?(params: {
+    provider: string;
+    externalId: string;
+    imageUrl: string;
+    thumbUrl: string;
+  }): Promise<{ imageUrl: string; thumbUrl: string }>;
   getQuotaHealth(): Promise<QuotaHealthSummary>;
 }
 

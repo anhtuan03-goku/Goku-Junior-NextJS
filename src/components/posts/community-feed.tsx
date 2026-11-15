@@ -18,7 +18,7 @@ export function CommunityPostsFeed({
   initialHasMore: boolean;
 }) {
   const router = useRouter();
-  const { user, showPhotographerInfo } = useAppSession();
+  const { user, showPhotographerInfo, t, tr } = useAppSession();
 
   const [posts, setPosts] = useState<PostViewItem[]>(initialPosts);
   const [page, setPage] = useState(1);
@@ -73,7 +73,7 @@ export function CommunityPostsFeed({
 
   async function handleToggleLike(postId: string) {
     if (!user) {
-      toast.info("Please sign in to send an anonymous heart.");
+      toast.info(t.community.signInToHeart);
       router.push("/login");
       return;
     }
@@ -110,7 +110,9 @@ export function CommunityPostsFeed({
         ),
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong.");
+      toast.error(
+        tr(err instanceof Error ? err.message : "Something went wrong."),
+      );
     } finally {
       setLikingIds((prev) => {
         const next = new Set(prev);
@@ -120,113 +122,139 @@ export function CommunityPostsFeed({
     }
   }
 
-  if (posts.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-border py-20 text-center space-y-2">
-        <p className="text-sm font-medium">No public stories yet</p>
-        <p className="text-xs text-muted-foreground">
-          Save an inspiring frame and share the first Public story with the
-          community.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
-      <div className="columns-1 sm:columns-2 lg:columns-3 gap-5">
-        {posts.map((post) => {
-          const isLiking = likingIds.has(post.id);
-          const photogLink =
-            post.image.photographerUsername && post.image.provider === "unsplash"
-              ? `/photographers/${encodeURIComponent(post.image.photographerUsername)}`
-              : null;
-
-          return (
-            <article
-              key={post.id}
-              className="mb-5 break-inside-avoid overflow-hidden rounded-xl border border-border bg-card"
-            >
-              <div
-                style={{
-                  aspectRatio: `${Math.max(post.image.width || 4, 1)} / ${Math.max(post.image.height || 5, 1)}`,
-                  backgroundColor: post.image.color ?? undefined,
-                }}
-                className="w-full overflow-hidden bg-muted"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={post.image.imageUrl}
-                  alt={post.image.description ?? "Story photograph"}
-                  loading="lazy"
-                  className="h-full w-full object-cover"
-                />
-              </div>
-
-              <div className="p-4 space-y-3.5">
-                {showPhotographerInfo && post.image.photographerName && (
-                  <div className="text-[11px] text-muted-foreground">
-                    Photo by{" "}
-                    {photogLink ? (
-                      <Link
-                        href={photogLink}
-                        className="underline underline-offset-4 hover:text-foreground"
-                      >
-                        {post.image.photographerName}
-                      </Link>
-                    ) : (
-                      <span>{post.image.photographerName}</span>
-                    )}
-                  </div>
-                )}
-
-                <p className="whitespace-pre-line text-sm leading-relaxed text-foreground">
-                  {post.content}
-                </p>
-
-                <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <UserAvatarCircle
-                      username={post.author.username}
-                      avatarUrl={post.author.avatarUrl}
-                      size="xs"
-                    />
-                    <div className="truncate text-xs">
-                      <span className="font-medium">@{post.author.username}</span>
-                      <span className="mx-1.5 text-muted-foreground">·</span>
-                      <span className="text-muted-foreground text-[11px]">
-                        {formatMinimalDate(post.createdAt)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Anonymous Like button — strictly shows total count only, zero liker list, zero comments */}
-                  <button
-                    type="button"
-                    disabled={isLiking}
-                    onClick={() => void handleToggleLike(post.id)}
-                    aria-label="Send anonymous heart"
-                    className={cn(
-                      "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-all active:scale-95 cursor-pointer",
-                      post.likedByMe
-                        ? "border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400"
-                        : "border-border text-muted-foreground hover:text-foreground hover:bg-accent",
-                    )}
-                  >
-                    <Heart
-                      className={cn(
-                        "size-3.5",
-                        post.likedByMe && "fill-current",
-                      )}
-                    />
-                    <span className="tabular-nums">{post.likesCount}</span>
-                  </button>
-                </div>
-              </div>
-            </article>
-          );
-        })}
+      <div className="space-y-1">
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">
+          {t.community.heading}
+        </h1>
+        <p className="text-xs sm:text-sm text-muted-foreground">
+          {t.community.subheading}
+        </p>
       </div>
+
+      {posts.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border py-20 text-center space-y-2">
+          <p className="text-sm font-medium">{t.community.emptyTitle}</p>
+          <p className="text-xs text-muted-foreground">
+            {t.community.emptySubtitle}
+          </p>
+        </div>
+      ) : (
+        <div className="columns-1 sm:columns-2 lg:columns-3 gap-5">
+          {posts.map((post) => {
+            const isLiking = likingIds.has(post.id);
+            const photogLink =
+              post.image.photographerUsername &&
+              (post.image.provider === "unsplash" ||
+                post.image.provider === "pixabay")
+                ? `/photographers/${encodeURIComponent(post.image.photographerUsername)}`
+                : null;
+
+            return (
+              <article
+                key={post.id}
+                className="mb-5 break-inside-avoid overflow-hidden rounded-xl border border-border bg-card"
+              >
+                <div
+                  style={{
+                    aspectRatio: `${Math.max(post.image.width || 4, 1)} / ${Math.max(post.image.height || 5, 1)}`,
+                    backgroundColor: post.image.color ?? undefined,
+                  }}
+                  className="w-full overflow-hidden bg-muted"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={post.image.imageUrl}
+                    alt={post.image.description ?? "Story photograph"}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+
+                <div className="p-4 space-y-3.5">
+                  {showPhotographerInfo && post.image.photographerName && (
+                    <div className="text-[11px] text-muted-foreground">
+                      {post.image.provider === "nasa"
+                        ? "Image Credit: "
+                        : t.community.photoBy}
+                      {photogLink ? (
+                        <Link
+                          href={photogLink}
+                          className="underline underline-offset-4 hover:text-foreground"
+                        >
+                          {post.image.photographerName}
+                        </Link>
+                      ) : (
+                        <span>{post.image.photographerName}</span>
+                      )}
+                      {post.image.provider === "pixabay" && (
+                        <>
+                          {" · "}
+                          <a
+                            href="https://pixabay.com/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline underline-offset-4 hover:text-foreground"
+                          >
+                            Pixabay
+                          </a>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  <p className="whitespace-pre-line text-sm leading-relaxed text-foreground">
+                    {post.content}
+                  </p>
+
+                  <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <UserAvatarCircle
+                        username={post.author.username}
+                        avatarUrl={post.author.avatarUrl}
+                        size="xs"
+                      />
+                      <div className="truncate text-xs">
+                        <span className="font-medium">
+                          @{post.author.username}
+                        </span>
+                        <span className="mx-1.5 text-muted-foreground">·</span>
+                        <span className="text-muted-foreground text-[11px]">
+                          {formatMinimalDate(post.createdAt)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Anonymous Like button — strictly shows total count only, zero liker list, zero comments */}
+                    <button
+                      type="button"
+                      disabled={isLiking}
+                      onClick={() => void handleToggleLike(post.id)}
+                      aria-label="Send anonymous heart"
+                      className={cn(
+                        "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-all active:scale-95 cursor-pointer",
+                        post.likedByMe
+                          ? "border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                          : "border-border text-muted-foreground hover:text-foreground hover:bg-accent",
+                      )}
+                    >
+                      <Heart
+                        className={cn(
+                          "size-3.5",
+                          post.likedByMe && "fill-current",
+                        )}
+                      />
+                      <span className="tabular-nums">{post.likesCount}</span>
+                    </button>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
 
       <div
         ref={sentinelRef}
@@ -235,7 +263,7 @@ export function CommunityPostsFeed({
         {loading && (
           <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="size-4 animate-spin" />
-            <span>Loading more stories...</span>
+            <span>{t.community.loadingMore}</span>
           </div>
         )}
       </div>
