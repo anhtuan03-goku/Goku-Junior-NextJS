@@ -1,3 +1,4 @@
+import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Inter } from "next/font/google";
 import { MinimalFooter } from "@/components/layout/minimal-footer";
@@ -118,6 +119,7 @@ export default async function RootLayout({
           </main>
           <MinimalFooter />
         </AppProviders>
+        {process.env.NODE_ENV === "production" && <Analytics />}
       </body>
     </html>
   );
