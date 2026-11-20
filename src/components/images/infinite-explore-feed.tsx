@@ -9,6 +9,7 @@ import {
 import { useAppSession } from "@/components/providers/app-providers";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/primitives";
+import { getExploreImageKey } from "@/domain/entities/explore-feed";
 import { cn } from "@/lib/utils";
 
 const GALLERY_COLUMNS = "columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4";
@@ -28,7 +29,7 @@ export function InfiniteExploreFeed({
   initialHasMore: boolean;
 }) {
   const { t, showPhotographerInfo } = useAppSession();
-  const [session] = useState(() => ({ seed, initialKeys: initialItems.map(imageKey) }));
+  const [session] = useState(() => ({ seed, initialKeys: initialItems.map(getExploreImageKey) }));
   const [{ firstPage, laterItems }, setItems] = useState(() => ({
     firstPage: initialItems,
     laterItems: [] as DecoratedFeedImage[],
@@ -99,8 +100,11 @@ export function InfiniteExploreFeed({
     setLoading(true);
     setLoadFailed(false);
     try {
-      const params = new URLSearchParams({ page: String(nextPage), seed: String(session.seed) });
-      const res = await fetch(`/api/images/feed?${params}`, {
+      const seenKeys = (seenKeysRef.current ??= new Set(session.initialKeys));
+      const res = await fetch("/api/images/feed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ page: nextPage, seed: session.seed, seenKeys: [...seenKeys] }),
         cache: "no-store",
         signal: request.signal,
       });
@@ -112,9 +116,8 @@ export function InfiniteExploreFeed({
       };
       if (request.signal.aborted) return;
 
-      const seenKeys = (seenKeysRef.current ??= new Set(session.initialKeys));
       const appended = data.items.filter((item) => {
-        const key = imageKey(item);
+        const key = getExploreImageKey(item);
         if (seenKeys.has(key)) return false;
         seenKeys.add(key);
         return true;

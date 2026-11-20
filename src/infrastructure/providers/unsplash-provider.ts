@@ -15,10 +15,21 @@ export class UpstreamQuotaExceededError extends Error {
   constructor(
     message = "Unsplash upstream rate limit reached",
     public readonly remaining = 0,
+    public readonly retryAt?: Date,
   ) {
     super(message);
     this.name = "UpstreamQuotaExceededError";
   }
+}
+
+export function readRetryAfter(headers: Headers): Date | undefined {
+  const value = headers.get("retry-after")?.trim();
+  if (!value) return undefined;
+
+  const now = Date.now();
+  const timestamp = /^\d+$/.test(value) ? now + Number(value) * 1_000 : Date.parse(value);
+  const retryAt = new Date(Math.max(now + 1_000, timestamp));
+  return Number.isNaN(retryAt.getTime()) ? undefined : retryAt;
 }
 
 /**
@@ -183,6 +194,7 @@ export class UnsplashImageProvider implements IImageProvider {
       throw new UpstreamQuotaExceededError(
         `Unsplash rate limit reached (HTTP ${response.status})`,
         0,
+        readRetryAfter(response.headers),
       );
     }
 
@@ -338,7 +350,11 @@ export class UnsplashImageProvider implements IImageProvider {
 
     const { remaining } = parseRateHeaders(response.headers);
     if (response.status === 429 || (response.status === 403 && remaining === 0)) {
-      throw new UpstreamQuotaExceededError("Quota exhausted during download trigger", 0);
+      throw new UpstreamQuotaExceededError(
+        "Quota exhausted during download trigger",
+        0,
+        readRetryAfter(response.headers),
+      );
     }
 
     return {

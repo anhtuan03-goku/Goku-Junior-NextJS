@@ -2,6 +2,7 @@ import type {
   SavedImage,
   SavedImageWithPosts,
 } from "@/domain/entities/models";
+import { MAX_EXPLORE_PAGES } from "@/domain/entities/explore-feed";
 import { NotFoundError, ValidationError } from "@/domain/errors/domain-errors";
 import type {
   FeedResponseDTO,
@@ -17,11 +18,12 @@ export class BrowseInfiniteImagesUseCase {
     query?: string;
     provider?: string;
     seed?: number;
+    seenKeys?: readonly string[];
     viewerUserId?: string | null;
   }): Promise<FeedResponseDTO> {
     const safePage =
       Number.isFinite(params.page) && params.page >= 1
-        ? Math.min(Math.floor(params.page), 500)
+        ? Math.min(Math.floor(params.page), MAX_EXPLORE_PAGES)
         : 1;
     const cleanQuery = params.query?.trim().slice(0, 100) || undefined;
     const seed = params.seed;
@@ -36,9 +38,10 @@ export class BrowseInfiniteImagesUseCase {
       query: cleanQuery,
       provider: params.provider,
       seed: exploreSeed,
+      seenKeys: params.seenKeys,
       viewerUserId: params.viewerUserId,
     });
-    return exploreSeed !== undefined && safePage === 500
+    return exploreSeed !== undefined && safePage === MAX_EXPLORE_PAGES
       ? { ...feed, hasMore: false }
       : feed;
   }

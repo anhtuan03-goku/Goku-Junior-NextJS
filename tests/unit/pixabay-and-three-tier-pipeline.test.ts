@@ -321,6 +321,32 @@ describe("PixabayImageProvider (Secondary: 100 req/60s, Mandatory 24h Cache)", (
 
     expect(PIXABAY_CACHE_TTL_MS).toBe(24 * 60 * 60 * 1000);
   });
+
+  it("waits for both Retry-After and Pixabay's quota reset before retrying a new page", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-03T12:10:00Z"));
+    const fetchSpy = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, {
+        status: 429,
+        headers: {
+          "Retry-After": new Date(Date.now() + 90_000).toUTCString(),
+          "X-RateLimit-Reset": "45",
+        },
+      }))
+      .mockResolvedValueOnce(Response.json({ hits: [] }));
+    const provider = new PixabayImageProvider({ apiKey: "pixabay_test_key", fetchImpl: fetchSpy });
+
+    await expect(provider.fetchPage({ page: 1, perPage: 20 })).rejects.toMatchObject({
+      retryAt: new Date(Date.now() + 90_000),
+    });
+    vi.advanceTimersByTime(45_000);
+    await expect(provider.fetchPage({ page: 2, perPage: 20 })).rejects.toThrow(UpstreamQuotaExceededError);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(45_000);
+    await expect(provider.fetchPage({ page: 2, perPage: 20 })).resolves.toMatchObject({ items: [] });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("PixabayServerMediaStorage (Hotlinking Policy & SSRF/XSS Guards)", () => {

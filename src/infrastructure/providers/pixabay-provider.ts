@@ -8,7 +8,7 @@ import type {
   ProviderFetchResult,
 } from "@/domain/repositories/ports";
 import { getEnv } from "../config/env";
-import { UpstreamQuotaExceededError } from "./unsplash-provider";
+import { UpstreamQuotaExceededError, readRetryAfter } from "./unsplash-provider";
 
 export const PIXABAY_MIN_PER_PAGE = 3;
 export const PIXABAY_MAX_PER_PAGE = 200;
@@ -324,6 +324,7 @@ export class PixabayImageProvider implements IImageProvider {
       throw new UpstreamQuotaExceededError(
         "Pixabay rate window temporarily exhausted",
         0,
+        new Date(this.rateResetAtMs),
       );
     }
 
@@ -359,9 +360,15 @@ export class PixabayImageProvider implements IImageProvider {
 
     if (response.status === 429) {
       this.rateRemaining = 0;
+      const retryAfter = readRetryAfter(response.headers);
+      const windowResetAt = resetSeconds === undefined ? 0 : this.rateResetAtMs;
+      const fallbackResetAt = Date.now() + PIXABAY_RATE_WINDOW_SECONDS * 1000;
+      const retryAt = new Date(Math.max(windowResetAt, retryAfter?.getTime() ?? 0) || fallbackResetAt);
+      this.rateResetAtMs = retryAt.getTime();
       throw new UpstreamQuotaExceededError(
         "Pixabay API rate limit exceeded (HTTP 429)",
         0,
+        retryAt,
       );
     }
 

@@ -159,6 +159,7 @@ export interface IImageFeedOrchestrator {
     query?: string;
     provider?: string;
     seed?: number;
+    seenKeys?: readonly string[];
     viewerUserId?: string | null;
   }): Promise<FeedResponseDTO>;
   getPhotographerDetail(params: {

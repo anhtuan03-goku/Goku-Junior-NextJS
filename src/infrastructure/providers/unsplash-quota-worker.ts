@@ -1,5 +1,6 @@
 import "server-only";
-import { createHash, randomInt } from "node:crypto";
+import { randomInt } from "node:crypto";
+import { EXPLORE_PAGE_SIZE, getExploreImageKey } from "@/domain/entities/explore-feed";
 import type {
   ExternalImageItem,
   PhotographerDetail,
@@ -18,6 +19,8 @@ import type { PixabayServerMediaStorage } from "../storage/pixabay-media-storage
 import {
   PIXABAY_CACHE_TTL_MS,
   PIXABAY_MAX_TOTAL_HITS,
+  PIXABAY_RATE_LIMIT_DEFAULT,
+  PIXABAY_RATE_WINDOW_SECONDS,
   PixabayImageProvider,
 } from "./pixabay-provider";
 import { PICSUM_MAX_PER_PAGE, type ImageProviderRegistry } from "./picsum-provider";
@@ -38,7 +41,7 @@ const PIXABAY_EXPLORE_PAGE_COUNT = Math.floor(
   PIXABAY_MAX_TOTAL_HITS / PIXABAY_EXPLORE_CANDIDATES,
 );
 const PIXABAY_EXPLORE_QUERIES = [undefined, "nature", "architecture", "travel", "ocean", "forest", "mountains", "abstract"];
-const PICSUM_STARTING_PAGE_COUNT = 8;
+const PICSUM_EXPLORE_PAGE_COUNT = 10;
 
 interface L1PageCacheEntry {
   items: ExternalImageItem[];
@@ -77,17 +80,50 @@ function appendUniqueItems(
   return merged;
 }
 
-function samplePhotographers(groups: Map<string, ExternalImageItem[]>, limit: number) {
-  const authors = [...groups.values()];
-  const count = Math.min(limit, authors.length);
-  const items: ExternalImageItem[] = [];
-  for (let index = 0; index < count; index++) {
-    const next = randomInt(index, authors.length);
-    [authors[index], authors[next]] = [authors[next]!, authors[index]!];
-    const photos = authors[index]!;
-    items.push(photos[randomInt(photos.length)]!);
+function appendExplorePhotos(
+  items: ExternalImageItem[],
+  seen: Set<string>,
+  candidates: ExternalImageItem[],
+) {
+  const candidateKeys = new Set<string>();
+  const groups = new Map<string, Array<{ key: string; item: ExternalImageItem }>>();
+  for (const item of candidates) {
+    const key = getExploreImageKey(item);
+    if (seen.has(key) || candidateKeys.has(key)) continue;
+    candidateKeys.add(key);
+
+    const name = item.photographer?.name.normalize("NFKC").trim().toLowerCase();
+    const username = item.photographer?.username.trim().toLowerCase();
+    const author = name ? `name:${name}` : username ? `account:${item.provider}:${username}` : key;
+    const group = groups.get(author);
+    if (group) group.push({ key, item });
+    else groups.set(author, [{ key, item }]);
   }
-  return items;
+
+  // Give each available photographer a random turn before taking another photo from them.
+  let authors = [...groups.values()];
+  while (authors.length > 0 && items.length < EXPLORE_PAGE_SIZE) {
+    const nextRound: typeof authors = [];
+    for (let i = 0; i < authors.length && items.length < EXPLORE_PAGE_SIZE; i++) {
+      const next = randomInt(i, authors.length);
+      [authors[i], authors[next]] = [authors[next]!, authors[i]!];
+      const photos = authors[i]!;
+      const photo = photos.splice(randomInt(photos.length), 1)[0]!;
+      items.push(photo.item);
+      seen.add(photo.key);
+      if (photos.length > 0) nextRound.push(photos);
+    }
+    authors = nextRound;
+  }
+}
+
+function exploreCacheExclusions(seen: Set<string>, provider: string): string[] {
+  const prefix = `${provider}:`;
+  const excluded: string[] = [];
+  for (const key of seen) {
+    if (key.startsWith(prefix)) excluded.push(key.slice(prefix.length));
+  }
+  return excluded;
 }
 
 export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
@@ -180,8 +216,7 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
     });
   }
 
-  private async markQuotaExhausted(): Promise<Date> {
-    const resetAt = computeNextHourReset();
+  private async markQuotaExhausted(resetAt = computeNextHourReset()): Promise<Date> {
     await this.store.saveRateState({
       provider: this.primaryProvider.providerName,
       remainingQuota: 0,
@@ -257,7 +292,7 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
       return batch.items;
     } catch (error) {
       if (error instanceof UpstreamQuotaExceededError) {
-        await this.markQuotaExhausted();
+        await this.markQuotaExhausted(error.retryAt);
       }
       return [];
     }
@@ -270,6 +305,7 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
     query?: string;
     persistToPool: boolean;
     allowDbPoolFallback: boolean;
+    respectRetryWindow?: boolean;
   }): Promise<ExternalImageItem[]> {
     const {
       provider,
@@ -280,6 +316,13 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
       allowDbPoolFallback,
     } = params;
     if (needed <= 0) return [];
+
+    const rate = params.respectRetryWindow
+      ? await this.store.getRateState(provider.providerName).catch(() => null)
+      : null;
+    if (rate && rate.remainingQuota <= 0 && rate.windowResetAt.getTime() > Date.now()) {
+      return [];
+    }
 
     // Fetch standard 30-photo batch for Pixabay so its mandatory 24-hour cache holds full pages
     const fetchCount =
@@ -303,8 +346,15 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
         }
         return res.items.slice(0, needed);
       }
-    } catch {
-      // Upstream 429 or transient error -> fall back to fresh DB cache or next tier!
+    } catch (error) {
+      if (params.respectRetryWindow && error instanceof UpstreamQuotaExceededError) {
+        await this.store.saveRateState({
+          provider: provider.providerName,
+          remainingQuota: 0,
+          limitQuota: rate?.limitQuota ?? PIXABAY_RATE_LIMIT_DEFAULT,
+          windowResetAt: error.retryAt ?? new Date(Date.now() + PIXABAY_RATE_WINDOW_SECONDS * 1000),
+        }).catch(() => undefined);
+      }
     }
 
     if (allowDbPoolFallback) {
@@ -327,6 +377,7 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
     page: number,
     seed: number,
     viewerUserId?: string | null,
+    seenKeys?: readonly string[],
   ): Promise<FeedResponseDTO> {
     const secondary = this.enableSecondaryFallback && this.registry.get(this.secondaryProviderName);
     const tertiary = this.enableTertiaryFallback && this.registry.get(this.tertiaryProviderName);
@@ -336,55 +387,24 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
     }
     if (tertiary) providers.push(tertiary);
 
-    // Each cycle gives every configured provider a turn in a new shuffled order.
-    const cycle = Math.floor((page - 1) / providers.length);
-    const order = providers
-      .map((provider) => ({
-        provider,
-        rank: createHash("sha256")
-          .update(`${seed}:${cycle}:${provider.providerName}`)
-          .digest("hex"),
-      }))
-      .sort((a, b) => a.rank.localeCompare(b.rank));
-    const start = (page - 1) % order.length;
-    const pageSize = UNSPLASH_MAX_PER_PAGE;
-    const byPhotographer = new Map<string, ExternalImageItem[]>();
-    const seenImages = new Set<string>();
+    const items: ExternalImageItem[] = [];
+    const seen = new Set(seenKeys);
     let source: FeedResponseDTO["source"] = "live";
 
-    const collect = (candidates: ExternalImageItem[]) => {
-      for (const item of candidates) {
-        const imageKey = `${item.provider}:${item.externalId}`;
-        if (seenImages.has(imageKey)) continue;
-        seenImages.add(imageKey);
-
-        const name = item.photographer?.name.normalize("NFKC").trim().toLowerCase();
-        const username = item.photographer?.username.trim().toLowerCase();
-        const authorKey = name
-          ? `name:${name}`
-          : username
-            ? `account:${item.provider}:${username}`
-            : `image:${imageKey}`;
-        const group = byPhotographer.get(authorKey);
-        if (group) group.push(item);
-        else byPhotographer.set(authorKey, [item]);
-      }
-    };
-
-    for (let i = 0; i < order.length && byPhotographer.size < pageSize; i++) {
-      const provider = order[(start + i) % order.length]!.provider;
+    for (const provider of providers) {
+      if (items.length === EXPLORE_PAGE_SIZE) break;
       let candidates: ExternalImageItem[];
 
       if (provider === this.primaryProvider) {
         // Concurrent Explore requests share a random batch, with one quota check and update.
         candidates = await this.coalesce("explore:unsplash:random", () =>
           this.fetchUnsplashFeedBatch(() =>
-            provider.fetchRandomBatch?.(pageSize) ?? provider.fetchPage({ page, perPage: pageSize }),
+            provider.fetchRandomBatch?.(EXPLORE_PAGE_SIZE) ?? provider.fetchPage({ page, perPage: EXPLORE_PAGE_SIZE }),
           ),
         ).catch(() => []);
       } else {
         // Visit different upstream pages on reload while keeping request keys cacheable.
-        let upstreamPage = page;
+        let upstreamPage = 1 + ((seed + page - 1) % PICSUM_EXPLORE_PAGE_COUNT);
         let query: string | undefined;
         let candidateCount = PICSUM_MAX_PER_PAGE;
         if (provider === secondary) {
@@ -393,8 +413,6 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
           query = PIXABAY_EXPLORE_QUERIES[(firstQuery + queryIndex) % PIXABAY_EXPLORE_QUERIES.length];
           upstreamPage = 1 + ((seed + page - 1) % PIXABAY_EXPLORE_PAGE_COUNT);
           candidateCount = PIXABAY_EXPLORE_CANDIDATES;
-        } else if (page <= PICSUM_STARTING_PAGE_COUNT) {
-          upstreamPage = 1 + ((seed + page - 1) % PICSUM_STARTING_PAGE_COUNT);
         }
 
         const persistToPool = provider === secondary;
@@ -407,32 +425,35 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
             query,
             persistToPool,
             allowDbPoolFallback: false,
+            respectRetryWindow: provider === secondary,
           }),
         );
       }
 
-      collect(candidates);
+      appendExplorePhotos(items, seen, candidates);
     }
 
-    if (byPhotographer.size < pageSize) {
+    if (items.length < EXPLORE_PAGE_SIZE) {
       const poolItems = await this.store.queryCachedImages({
-        page,
-        perPage: pageSize,
+        page: 1,
+        perPage: EXPLORE_PAGE_SIZE,
         provider: this.primaryProvider.providerName,
         seed,
+        excludeExternalIds: exploreCacheExclusions(seen, this.primaryProvider.providerName),
       }).catch(() => []);
-      if (poolItems.length > 0) {
-        source = byPhotographer.size > 0 ? "hybrid_fallback" : "cache_pool";
-        collect(poolItems);
+      const liveCount = items.length;
+      appendExplorePhotos(items, seen, poolItems);
+      if (items.length > liveCount) {
+        source = liveCount > 0 ? "hybrid_fallback" : "cache_pool";
       }
     }
 
-    const items = samplePhotographers(byPhotographer, pageSize);
     void this.drainQueueBackground();
     return {
       items: await this.attachSavedState(items, viewerUserId),
       page,
-      hasMore: items.length > 0,
+      // A later page can try another upstream window or a different fallback page.
+      hasMore: true,
       source,
     };
   }
@@ -442,13 +463,14 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
     query?: string;
     provider?: string;
     seed?: number;
+    seenKeys?: readonly string[];
     viewerUserId?: string | null;
   }): Promise<FeedResponseDTO> {
     const page = Math.max(1, params.page);
     const query = params.query?.trim() || undefined;
 
     if (params.seed !== undefined && !params.provider && !query) {
-      return this.getExploreFeed(page, params.seed, params.viewerUserId);
+      return this.getExploreFeed(page, params.seed, params.viewerUserId, params.seenKeys);
     }
 
     // Explicit secondary/tertiary provider selection (multi-provider extensibility!)
@@ -720,7 +742,7 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
           };
         } catch (err) {
           if (err instanceof UpstreamQuotaExceededError) {
-            const resetAt = await this.markQuotaExhausted();
+            const resetAt = await this.markQuotaExhausted(err.retryAt);
             await this.store.enqueueJob(
               "SYNC_PHOTOGRAPHER",
               { username: cleanUsername },
@@ -903,7 +925,7 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
           }
         } catch (err) {
           if (err instanceof UpstreamQuotaExceededError) {
-            const resetAt = await this.markQuotaExhausted();
+            const resetAt = await this.markQuotaExhausted(err.retryAt);
             await this.store.deferJob(job.id, resetAt, job.attempts + 1);
             break;
           }

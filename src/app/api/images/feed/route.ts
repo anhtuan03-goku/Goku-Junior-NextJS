@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { EXPLORE_PAGE_SIZE, MAX_EXPLORE_PAGES } from "@/domain/entities/explore-feed";
 import { getContainer } from "@/infrastructure/container";
 import {
   getOptionalSessionUser,
   handleApiError,
 } from "@/interfaces/http/api-helpers";
+
+const continuationSchema = z.strictObject({
+  page: z.number().int().min(1).max(MAX_EXPLORE_PAGES),
+  seed: z.number().int().min(0).max(0xffffffff),
+  seenKeys: z.array(z.string().min(1).max(161)).max(EXPLORE_PAGE_SIZE * MAX_EXPLORE_PAGES),
+});
 
 export async function GET(request: Request) {
   try {
@@ -23,6 +31,22 @@ export async function GET(request: Request) {
       viewerUserId: viewer?.id ?? null,
     });
 
+    return NextResponse.json(feed, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const continuation = continuationSchema.parse(await request.json().catch(() => null));
+    const viewer = await getOptionalSessionUser();
+    const feed = await getContainer().useCases.browseInfiniteImages.execute({
+      ...continuation,
+      viewerUserId: viewer?.id ?? null,
+    });
     return NextResponse.json(feed, {
       headers: { "Cache-Control": "private, no-store" },
     });

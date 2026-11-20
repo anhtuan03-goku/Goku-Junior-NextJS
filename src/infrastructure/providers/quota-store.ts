@@ -9,6 +9,7 @@ import {
   inArray,
   lte,
   ne,
+  notInArray,
   or,
   sql,
 } from "drizzle-orm";
@@ -61,6 +62,7 @@ export interface IQuotaPersistenceStore {
     query?: string;
     provider?: string;
     seed?: number;
+    excludeExternalIds?: string[];
   }): Promise<ExternalImageItem[]>;
   getCachedPhotographer(
     username: string,
@@ -236,6 +238,7 @@ export class PostgresQuotaPersistenceStore implements IQuotaPersistenceStore {
     query?: string;
     provider?: string;
     seed?: number;
+    excludeExternalIds?: string[];
   }): Promise<ExternalImageItem[]> {
     const offset = Math.max(0, (params.page - 1) * params.perPage);
     const conditions = [];
@@ -251,6 +254,9 @@ export class PostgresQuotaPersistenceStore implements IQuotaPersistenceStore {
 
     if (params.provider) {
       conditions.push(eq(cachedImages.provider, params.provider));
+    }
+    if (params.excludeExternalIds?.length) {
+      conditions.push(notInArray(cachedImages.externalId, params.excludeExternalIds));
     }
 
     if (params.query) {
