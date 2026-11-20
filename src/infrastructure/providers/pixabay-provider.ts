@@ -336,6 +336,7 @@ export class PixabayImageProvider implements IImageProvider {
     const response = await this.fetchImpl(u.toString(), {
       method: "GET",
       cache: "no-store",
+      signal: AbortSignal.timeout(5_000),
     });
 
     const { limit, remaining, resetSeconds } = parsePixabayRateHeaders(

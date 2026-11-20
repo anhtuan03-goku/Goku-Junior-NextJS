@@ -60,6 +60,7 @@ export interface IQuotaPersistenceStore {
     perPage: number;
     query?: string;
     provider?: string;
+    seed?: number;
   }): Promise<ExternalImageItem[]>;
   getCachedPhotographer(
     username: string,
@@ -234,6 +235,7 @@ export class PostgresQuotaPersistenceStore implements IQuotaPersistenceStore {
     perPage: number;
     query?: string;
     provider?: string;
+    seed?: number;
   }): Promise<ExternalImageItem[]> {
     const offset = Math.max(0, (params.page - 1) * params.perPage);
     const conditions = [];
@@ -266,7 +268,12 @@ export class PostgresQuotaPersistenceStore implements IQuotaPersistenceStore {
       .select()
       .from(cachedImages)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(cachedImages.fetchedAt), desc(cachedImages.id))
+      .orderBy(
+        params.seed === undefined
+          ? desc(cachedImages.fetchedAt)
+          : sql`md5(${cachedImages.externalId} || ${String(params.seed)})`,
+        desc(cachedImages.id),
+      )
       .limit(params.perPage)
       .offset(offset);
 

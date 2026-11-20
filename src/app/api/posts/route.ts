@@ -27,15 +27,22 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const page = Number.parseInt(searchParams.get("page") ?? "1", 10);
     const limit = Number.parseInt(searchParams.get("limit") ?? "18", 10);
+    const rawSeed = searchParams.get("seed");
+    const seed = rawSeed && /^\d{1,10}$/.test(rawSeed) ? Number(rawSeed) : undefined;
+    const after = z.uuid().optional().parse(searchParams.get("after") ?? undefined);
 
     const viewer = await getOptionalSessionUser();
     const result = await getContainer().useCases.listPublicPosts.execute({
       page: Number.isFinite(page) && page >= 1 ? page : 1,
       limit: Number.isFinite(limit) ? limit : 18,
+      seed,
+      after,
       viewerUserId: viewer?.id ?? null,
     });
 
-    return NextResponse.json(result, { status: 200 });
+    return NextResponse.json(result, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
   } catch (error) {
     return handleApiError(error);
   }

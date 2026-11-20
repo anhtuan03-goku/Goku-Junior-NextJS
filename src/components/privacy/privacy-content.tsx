@@ -27,9 +27,6 @@ export function ZeroPiiPolicyContent() {
       </div>
 
       <header className="space-y-3 border-b border-border/70 pb-6">
-        <p className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
-          {t.privacy.eyebrow}
-        </p>
         <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
           {t.privacy.title}
         </h1>

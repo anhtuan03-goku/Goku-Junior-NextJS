@@ -212,7 +212,7 @@ export const UI_STRINGS = {
     footer: {
       tagline: "Nhật ký thị giác tối giản.",
       community: "Cộng đồng",
-      privacy: "Chính sách bảo mật Zero-PII",
+      privacy: "Chính sách quyền riêng tư",
     },
     auth: {
       signInTab: "Đăng nhập",
@@ -282,8 +282,10 @@ export const UI_STRINGS = {
       backToMemberLogin: "Quay lại đăng nhập thành viên",
     },
     explore: {
-      empty: "Hiện chưa có khung hình nào. Vui lòng tải lại sau giây lát.",
+      empty: "Hiện chưa có khung hình nào.",
       loadingMore: "Đang tải thêm khung hình",
+      loadMore: "Tải thêm ảnh",
+      retry: "Thử lại",
     },
     space: {
       searchPlaceholder:
@@ -394,31 +396,30 @@ export const UI_STRINGS = {
     },
     privacy: {
       backExplore: "Quay lại Khám phá",
-      eyebrow: "naut.frame · Kiến Trúc Quyền Riêng Tư",
-      title: "Chính Sách Bảo Mật Zero-PII",
+      title: "Chính sách quyền riêng tư",
       intro:
-        "naut.frame được xây dựng dựa trên một nguyên lý giản dị: hệ thống không thể làm lộ, bán hay rò rỉ dữ liệu cá nhân mà ngay từ đầu chưa từng thu thập.",
+        "Khi dùng naut.frame, bạn có thể lưu ảnh cho riêng mình và chọn những bài viết muốn chia sẻ với cộng đồng.",
       pillars: [
         {
-          title: "Không Thu Thập Thông Tin Định Danh (Zero-PII)",
-          body: "Đăng ký và đăng nhập chỉ yêu cầu duy nhất tên đăng nhập chữ thường và mật khẩu. Hệ thống không bao giờ hỏi hay lưu trữ email, số điện thoại, họ tên thật, vị trí hay mạng xã hội bên thứ ba.",
+          title: "Thông tin tài khoản",
+          body: "Bạn chỉ cần tên đăng nhập và mật khẩu để tạo tài khoản. Ảnh đại diện là tùy chọn và bạn có thể thay đổi hoặc xóa ảnh bất cứ lúc nào.",
         },
         {
-          title: "Băm Mật Khẩu Một Chiều & Thu Hồi Phiên Tức Thì",
-          body: "Mật khẩu không bao giờ lưu dạng văn bản thuần. Mọi mật khẩu đều được băm một chiều bằng bcrypt (cost 12) trước khi ghi vào cơ sở dữ liệu, và việc đổi mật khẩu sẽ vô hiệu hoá ngay lập tức các phiên cũ.",
+          title: "Quyền truy cập tài khoản",
+          body: "Sau khi đổi mật khẩu, bạn sẽ cần dùng mật khẩu mới để đăng nhập lại trên các thiết bị khác.",
         },
         {
-          title: "Thả Tim Ẩn Danh Tĩnh Lặng",
-          body: "Các câu chuyện công khai chỉ hiển thị tổng số lượt tim — không bình luận ồn ào, không thông báo làm phiền và không công khai danh sách người đã thả tim. Nhật ký kiểm duyệt nội bộ chỉ dành riêng cho Quản trị viên.",
+          title: "Lượt thả tim",
+          body: "Người xem bài viết công khai chỉ thấy tổng số lượt thả tim. Danh tính của người thả tim được giữ kín với cộng đồng.",
         },
         {
-          title: "Mặc Định Riêng Tư & Ảnh Đại Diện 1 Ô Lưu Trữ",
-          body: "Khung hình đã lưu và bài viết Riêng tư được cô lập hoàn toàn trong tài khoản của bạn. Ảnh đại diện tuỳ chọn được nén sang WebP trên trình duyệt và chỉ chiếm tối đa 1 vị trí lưu trữ trên Cloudinary.",
+          title: "Ảnh đã lưu và bài viết",
+          body: "Bộ sưu tập ảnh đã lưu chỉ hiển thị với bạn. Bạn có thể chuyển bài viết giữa chế độ Riêng tư và Công khai bất cứ lúc nào.",
         },
       ],
-      cookiesTitle: "Cookie & Phiên Làm Việc Thiết Yếu",
+      cookiesTitle: "Đăng nhập và tùy chọn hiển thị",
       cookiesBody:
-        "Ứng dụng chỉ sử dụng duy nhất 1 cookie HttpOnly thiết yếu để duy trì phiên đăng nhập cùng bộ nhớ cục bộ lưu chế độ sáng/tối, ngôn ngữ (VI/EN) và tuỳ chọn hiển thị tác giả. Hoàn toàn không có trình theo dõi quảng cáo hay script phân tích hành vi.",
+        "naut.frame ghi nhớ trạng thái đăng nhập, ngôn ngữ, giao diện sáng hoặc tối và tùy chọn hiển thị tên tác giả ảnh.",
     },
   },
   en: {
@@ -443,7 +444,7 @@ export const UI_STRINGS = {
     footer: {
       tagline: "Minimalist visual journal.",
       community: "Community",
-      privacy: "Zero-PII Privacy Policy",
+      privacy: "Privacy Policy",
     },
     auth: {
       signInTab: "Sign in",
@@ -513,8 +514,10 @@ export const UI_STRINGS = {
       backToMemberLogin: "Member sign in",
     },
     explore: {
-      empty: "No frames available right now. Please refresh in a moment.",
+      empty: "No frames available right now.",
       loadingMore: "Loading more frames",
+      loadMore: "Load more photos",
+      retry: "Try again",
     },
     space: {
       searchPlaceholder:
@@ -625,31 +628,30 @@ export const UI_STRINGS = {
     },
     privacy: {
       backExplore: "Back to Explore",
-      eyebrow: "naut.frame · Privacy Architecture",
-      title: "Zero-PII Privacy Policy",
+      title: "Privacy Policy",
       intro:
-        "We built naut.frame around a simple conviction: you cannot leak, sell, or expose personal data that you never collect in the first place.",
+        "On naut.frame, you can save photos for yourself and choose which posts to share with the community.",
       pillars: [
         {
-          title: "Zero Personal Identifiable Information (Zero-PII)",
-          body: "Registration and sign-in require only a unique lowercase username and a password. We never ask for, store, or process your email address, phone number, legal name, location, or third-party social graph.",
+          title: "Account information",
+          body: "You only need a username and password to create an account. A profile picture is optional, and you can change or remove it at any time.",
         },
         {
-          title: "One-Way Password Hashing & Instant Session Revocation",
-          body: "Passwords are never stored in plain text. Every password is hashed one-way with bcrypt (cost factor 12) before reaching our database, and changing your password immediately invalidates all prior sessions.",
+          title: "Account access",
+          body: "When you change your password, you’ll need to sign in again on your other devices using the new password.",
         },
         {
-          title: "Quiet & Anonymous Appreciation",
-          body: "Public visual stories display only an aggregate heart count—no comment threads, no notification noise, and no public list of who liked a post. Internal moderation audit logs are restricted strictly to system administrators.",
+          title: "Likes",
+          body: "People viewing a public post can see how many likes it has. The identities of people who liked it are kept private from other members.",
         },
         {
-          title: "Private by Default & Single-Slot Avatar Hygiene",
-          body: "Saved frames and Private posts remain strictly isolated to your account and can be switched between Private and Public at any time. Optional profile avatars are compressed to WebP in your browser and occupy at most one storage slot—automatically overwritten on update and permanently purged on removal.",
+          title: "Saved photos and posts",
+          body: "Only you can see your collection of saved photos. You can switch any post between Private and Public at any time.",
         },
       ],
-      cookiesTitle: "Cookies & Essential Session State",
+      cookiesTitle: "Sign-in and display preferences",
       cookiesBody:
-        "We use a single essential HttpOnly session cookie to keep you signed in and local preference keys to remember your theme, language (EN/VI), and photographer-credit toggle. Zero advertising trackers, zero fingerprinting scripts, and zero behavioral analytics are loaded on any page.",
+        "naut.frame keeps you signed in and remembers your language, light or dark theme, and whether you show photographer credits.",
     },
   },
 } as const;

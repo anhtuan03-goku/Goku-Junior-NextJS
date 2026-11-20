@@ -66,8 +66,7 @@ function buildContainer() {
   const tokenService = new JoseSessionTokenService();
   const avatarStorage = new CloudinarySingleSlotStorage();
 
-  // 3-Tier Multi-Provider Registry:
-  // Primary: Unsplash (50 req/hr) -> Secondary: Pixabay (100 req/60s, 24h cache) -> Tertiary: Picsum
+  // Explore rotates through these providers. The worker also supports targeted feeds.
   const unsplashProvider = new UnsplashImageProvider();
   const pixabayProvider = new PixabayImageProvider();
   const picsumProvider = new PicsumRandomProvider();

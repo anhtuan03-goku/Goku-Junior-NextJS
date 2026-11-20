@@ -16,19 +16,31 @@ export class BrowseInfiniteImagesUseCase {
     page: number;
     query?: string;
     provider?: string;
+    seed?: number;
     viewerUserId?: string | null;
   }): Promise<FeedResponseDTO> {
-    const safePage = Number.isFinite(params.page) && params.page >= 1
-      ? Math.min(Math.floor(params.page), 500)
-      : 1;
+    const safePage =
+      Number.isFinite(params.page) && params.page >= 1
+        ? Math.min(Math.floor(params.page), 500)
+        : 1;
     const cleanQuery = params.query?.trim().slice(0, 100) || undefined;
+    const seed = params.seed;
+    const exploreSeed =
+      !cleanQuery && !params.provider && seed !== undefined &&
+      Number.isInteger(seed) && seed >= 0 && seed <= 0xffffffff
+        ? seed
+        : undefined;
 
-    return this.orchestrator.getInfiniteFeed({
+    const feed = await this.orchestrator.getInfiniteFeed({
       page: safePage,
       query: cleanQuery,
       provider: params.provider,
+      seed: exploreSeed,
       viewerUserId: params.viewerUserId,
     });
+    return exploreSeed !== undefined && safePage === 500
+      ? { ...feed, hasMore: false }
+      : feed;
   }
 }
 

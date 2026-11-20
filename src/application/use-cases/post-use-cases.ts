@@ -123,6 +123,8 @@ export class ListPublicPostsUseCase {
   async execute(params: {
     page: number;
     limit?: number;
+    seed?: number;
+    after?: string;
     viewerUserId?: string | null;
   }): Promise<{ items: PostViewItem[]; hasMore: boolean }> {
     const safePage =
@@ -130,10 +132,17 @@ export class ListPublicPostsUseCase {
         ? Math.floor(params.page)
         : 1;
     const safeLimit = Math.min(Math.max(params.limit ?? 18, 1), 30);
+    const seed = params.seed;
+    const safeSeed =
+      seed !== undefined && Number.isInteger(seed) && seed >= 0 && seed <= 0xffffffff
+        ? seed
+        : undefined;
 
     return this.postRepo.listPublicFeed({
       page: safePage,
       limit: safeLimit,
+      seed: safeSeed,
+      after: safeSeed === undefined ? undefined : params.after,
       viewerUserId: params.viewerUserId,
     });
   }

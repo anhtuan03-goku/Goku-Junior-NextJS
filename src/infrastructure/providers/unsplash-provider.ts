@@ -171,6 +171,7 @@ export class UnsplashImageProvider implements IImageProvider {
       method: "GET",
       headers: this.getAuthHeaders(),
       cache: "no-store",
+      signal: AbortSignal.timeout(5_000),
     });
 
     const { remaining, limit } = parseRateHeaders(response.headers);
@@ -266,6 +267,21 @@ export class UnsplashImageProvider implements IImageProvider {
       rateLimitRemaining: res.rateLimitRemaining,
       rateLimitLimit: res.rateLimitLimit,
     };
+  }
+
+  async fetchRandomBatch(perPage: number): Promise<ProviderFetchResult> {
+    const count = Math.min(Math.max(perPage, 1), UNSPLASH_MAX_PER_PAGE);
+    const u = new URL("https://api.unsplash.com/photos/random");
+    u.searchParams.set("count", String(count));
+    u.searchParams.set("content_filter", "high");
+
+    const { data, rateLimitRemaining, rateLimitLimit } =
+      await this.requestJson<RawUnsplashPhoto[]>(u.toString());
+    const items = (Array.isArray(data) ? data : [])
+      .map((photo) => this.mapPhoto(photo))
+      .filter((photo): photo is ExternalImageItem => photo !== null);
+
+    return { items, rateLimitRemaining, rateLimitLimit };
   }
 
   async fetchPhotographer(username: string) {

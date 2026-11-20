@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import robots from "@/app/robots";
 import sitemap from "@/app/sitemap";
+import { UI_STRINGS } from "@/lib/i18n";
 import { SITE_CONFIG } from "@/lib/site-config";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
@@ -20,12 +21,16 @@ describe("naut.frame Brand, Bilingual (EN/VI), SEO & UI Invariants", () => {
     expect(i18nFile).toContain("autoTranslateMessage");
   });
 
-  it("isolates Zero-PII policy to /privacy and removes it from Sign In / Sign Up UI", () => {
+  it("keeps the plain-language privacy policy on /privacy", () => {
     const privacyPage = path.join(ROOT, "src/app/privacy/page.tsx");
     expect(fs.existsSync(privacyPage)).toBe(true);
     expect(fs.readFileSync(privacyPage, "utf8")).toContain(
-      "Zero-PII Privacy Policy",
+      '"Privacy Policy"',
     );
+    for (const locale of ["vi", "en"] as const) {
+      const copy = JSON.stringify(UI_STRINGS[locale].privacy);
+      expect(copy).not.toMatch(/zero-pii|bcrypt|webp|cloudinary|httponly|moderation|administrator|quản trị viên|kiểm duyệt/i);
+    }
 
     const authForm = fs.readFileSync(
       path.join(ROOT, "src/components/auth/auth-form.tsx"),

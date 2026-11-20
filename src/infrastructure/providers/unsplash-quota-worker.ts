@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash, randomInt } from "node:crypto";
 import type {
   ExternalImageItem,
   PhotographerDetail,
@@ -11,13 +12,15 @@ import type {
   IImageFeedOrchestrator,
   IImageProvider,
   ISavedImageRepository,
+  ProviderFetchResult,
 } from "@/domain/repositories/ports";
 import type { PixabayServerMediaStorage } from "../storage/pixabay-media-storage";
 import {
   PIXABAY_CACHE_TTL_MS,
+  PIXABAY_MAX_TOTAL_HITS,
   PixabayImageProvider,
 } from "./pixabay-provider";
-import type { ImageProviderRegistry } from "./picsum-provider";
+import { PICSUM_MAX_PER_PAGE, type ImageProviderRegistry } from "./picsum-provider";
 import type { IQuotaPersistenceStore } from "./quota-store";
 import {
   UNSPLASH_MAX_PER_PAGE,
@@ -30,6 +33,12 @@ const FEED_RESERVE_THRESHOLD = 8; // Keep last 8 req/hr reserved for Photographe
 const DOWNLOAD_RESERVE_THRESHOLD = 12; // Drain deferred download triggers comfortably when > 12 req remain
 const FEED_PAGE_CACHE_TTL_MS = 10 * 60 * 1000; // Reuse exact feed page for 10 mins across all users (0 extra API cost!)
 const PHOTOGRAPHER_FRESH_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours fresh photographer cache
+const PIXABAY_EXPLORE_CANDIDATES = 100;
+const PIXABAY_EXPLORE_PAGE_COUNT = Math.floor(
+  PIXABAY_MAX_TOTAL_HITS / PIXABAY_EXPLORE_CANDIDATES,
+);
+const PIXABAY_EXPLORE_QUERIES = [undefined, "nature", "architecture", "travel", "ocean", "forest", "mountains", "abstract"];
+const PICSUM_STARTING_PAGE_COUNT = 8;
 
 interface L1PageCacheEntry {
   items: ExternalImageItem[];
@@ -66,6 +75,19 @@ function appendUniqueItems(
     }
   }
   return merged;
+}
+
+function samplePhotographers(groups: Map<string, ExternalImageItem[]>, limit: number) {
+  const authors = [...groups.values()];
+  const count = Math.min(limit, authors.length);
+  const items: ExternalImageItem[] = [];
+  for (let index = 0; index < count; index++) {
+    const next = randomInt(index, authors.length);
+    [authors[index], authors[next]] = [authors[next]!, authors[index]!];
+    const photos = authors[index]!;
+    items.push(photos[randomInt(photos.length)]!);
+  }
+  return items;
 }
 
 export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
@@ -221,12 +243,27 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
     });
   }
 
-  /**
-   * Fetches items from a fallback provider (Secondary = Pixabay or Tertiary = Picsum),
-   * hydrating Neon DB cache & photographer snapshots and swallowing any upstream 429/errors
-   * so Zero-429 cascade continues smoothly.
-   */
-  private async fetchFromFallbackProvider(params: {
+  private async fetchUnsplashFeedBatch(
+    fetchBatch: () => Promise<ProviderFetchResult>,
+    query?: string,
+  ): Promise<ExternalImageItem[]> {
+    const quota = await this.getEffectiveQuota();
+    if (quota.remaining <= FEED_RESERVE_THRESHOLD) return [];
+
+    try {
+      const batch = await fetchBatch();
+      await this.recordQuotaAfterCall(batch.rateLimitRemaining, batch.rateLimitLimit);
+      await this.hydratePoolAndPhotographers(batch.items, query);
+      return batch.items;
+    } catch (error) {
+      if (error instanceof UpstreamQuotaExceededError) {
+        await this.markQuotaExhausted();
+      }
+      return [];
+    }
+  }
+
+  private async fetchProviderPage(params: {
     provider: IImageProvider;
     page: number;
     needed: number;
@@ -286,14 +323,133 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
     return [];
   }
 
+  private async getExploreFeed(
+    page: number,
+    seed: number,
+    viewerUserId?: string | null,
+  ): Promise<FeedResponseDTO> {
+    const secondary = this.enableSecondaryFallback && this.registry.get(this.secondaryProviderName);
+    const tertiary = this.enableTertiaryFallback && this.registry.get(this.tertiaryProviderName);
+    const providers = [this.primaryProvider];
+    if (secondary && (!(secondary instanceof PixabayImageProvider) || secondary.isConfigured())) {
+      providers.push(secondary);
+    }
+    if (tertiary) providers.push(tertiary);
+
+    // Each cycle gives every configured provider a turn in a new shuffled order.
+    const cycle = Math.floor((page - 1) / providers.length);
+    const order = providers
+      .map((provider) => ({
+        provider,
+        rank: createHash("sha256")
+          .update(`${seed}:${cycle}:${provider.providerName}`)
+          .digest("hex"),
+      }))
+      .sort((a, b) => a.rank.localeCompare(b.rank));
+    const start = (page - 1) % order.length;
+    const pageSize = UNSPLASH_MAX_PER_PAGE;
+    const byPhotographer = new Map<string, ExternalImageItem[]>();
+    const seenImages = new Set<string>();
+    let source: FeedResponseDTO["source"] = "live";
+
+    const collect = (candidates: ExternalImageItem[]) => {
+      for (const item of candidates) {
+        const imageKey = `${item.provider}:${item.externalId}`;
+        if (seenImages.has(imageKey)) continue;
+        seenImages.add(imageKey);
+
+        const name = item.photographer?.name.normalize("NFKC").trim().toLowerCase();
+        const username = item.photographer?.username.trim().toLowerCase();
+        const authorKey = name
+          ? `name:${name}`
+          : username
+            ? `account:${item.provider}:${username}`
+            : `image:${imageKey}`;
+        const group = byPhotographer.get(authorKey);
+        if (group) group.push(item);
+        else byPhotographer.set(authorKey, [item]);
+      }
+    };
+
+    for (let i = 0; i < order.length && byPhotographer.size < pageSize; i++) {
+      const provider = order[(start + i) % order.length]!.provider;
+      let candidates: ExternalImageItem[];
+
+      if (provider === this.primaryProvider) {
+        // Concurrent Explore requests share a random batch, with one quota check and update.
+        candidates = await this.coalesce("explore:unsplash:random", () =>
+          this.fetchUnsplashFeedBatch(() =>
+            provider.fetchRandomBatch?.(pageSize) ?? provider.fetchPage({ page, perPage: pageSize }),
+          ),
+        ).catch(() => []);
+      } else {
+        // Visit different upstream pages on reload while keeping request keys cacheable.
+        let upstreamPage = page;
+        let query: string | undefined;
+        let candidateCount = PICSUM_MAX_PER_PAGE;
+        if (provider === secondary) {
+          const queryIndex = Math.floor((page - 1) / PIXABAY_EXPLORE_PAGE_COUNT);
+          const firstQuery = Math.floor(seed / PIXABAY_EXPLORE_PAGE_COUNT);
+          query = PIXABAY_EXPLORE_QUERIES[(firstQuery + queryIndex) % PIXABAY_EXPLORE_QUERIES.length];
+          upstreamPage = 1 + ((seed + page - 1) % PIXABAY_EXPLORE_PAGE_COUNT);
+          candidateCount = PIXABAY_EXPLORE_CANDIDATES;
+        } else if (page <= PICSUM_STARTING_PAGE_COUNT) {
+          upstreamPage = 1 + ((seed + page - 1) % PICSUM_STARTING_PAGE_COUNT);
+        }
+
+        const persistToPool = provider === secondary;
+        candidates = await this.coalesce(
+          `explore:${provider.providerName}:${upstreamPage}:${query ?? ""}`,
+          () => this.fetchProviderPage({
+            provider,
+            page: upstreamPage,
+            needed: candidateCount,
+            query,
+            persistToPool,
+            allowDbPoolFallback: false,
+          }),
+        );
+      }
+
+      collect(candidates);
+    }
+
+    if (byPhotographer.size < pageSize) {
+      const poolItems = await this.store.queryCachedImages({
+        page,
+        perPage: pageSize,
+        provider: this.primaryProvider.providerName,
+        seed,
+      }).catch(() => []);
+      if (poolItems.length > 0) {
+        source = byPhotographer.size > 0 ? "hybrid_fallback" : "cache_pool";
+        collect(poolItems);
+      }
+    }
+
+    const items = samplePhotographers(byPhotographer, pageSize);
+    void this.drainQueueBackground();
+    return {
+      items: await this.attachSavedState(items, viewerUserId),
+      page,
+      hasMore: items.length > 0,
+      source,
+    };
+  }
+
   async getInfiniteFeed(params: {
     page: number;
     query?: string;
     provider?: string;
+    seed?: number;
     viewerUserId?: string | null;
   }): Promise<FeedResponseDTO> {
     const page = Math.max(1, params.page);
     const query = params.query?.trim() || undefined;
+
+    if (params.seed !== undefined && !params.provider && !query) {
+      return this.getExploreFeed(page, params.seed, params.viewerUserId);
+    }
 
     // Explicit secondary/tertiary provider selection (multi-provider extensibility!)
     if (
@@ -305,7 +461,7 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
         const altItems = await this.coalesce(
           `alt:${altProvider.providerName}:${page}:${query ?? ""}`,
           () =>
-            this.fetchFromFallbackProvider({
+            this.fetchProviderPage({
               provider: altProvider,
               page,
               needed: UNSPLASH_MAX_PER_PAGE,
@@ -345,42 +501,16 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
     }
 
     const fetched = await this.coalesce(cacheKey, async () => {
-      const quota = await this.getEffectiveQuota();
-
-      // Tier 1 (Primary — Unsplash): Fetch live 30-image batch when above reserve threshold
-      if (quota.remaining > FEED_RESERVE_THRESHOLD) {
-        try {
-          const liveRes = await this.primaryProvider.fetchPage({
-            page,
-            perPage: UNSPLASH_MAX_PER_PAGE,
-            query,
-          });
-          await this.recordQuotaAfterCall(
-            liveRes.rateLimitRemaining,
-            liveRes.rateLimitLimit,
-          );
-          await this.hydratePoolAndPhotographers(
-            liveRes.items,
-            query ?? "",
-            this.primaryProvider.providerName,
-          );
-
-          if (liveRes.items.length > 0) {
-            this.l1FeedCache.set(cacheKey, {
-              items: liveRes.items,
-              expiresAt: Date.now() + FEED_PAGE_CACHE_TTL_MS,
-            });
-            return {
-              items: liveRes.items,
-              source: "live" as const,
-            };
-          }
-        } catch (err) {
-          if (err instanceof UpstreamQuotaExceededError) {
-            await this.markQuotaExhausted();
-          }
-          // Fall through seamlessly to Zero-429 Multi-Tier Fallback Engine!
-        }
+      const liveItems = await this.fetchUnsplashFeedBatch(
+        () => this.primaryProvider.fetchPage({ page, perPage: UNSPLASH_MAX_PER_PAGE, query }),
+        query,
+      );
+      if (liveItems.length > 0) {
+        this.l1FeedCache.set(cacheKey, {
+          items: liveItems,
+          expiresAt: Date.now() + FEED_PAGE_CACHE_TTL_MS,
+        });
+        return { items: liveItems, source: "live" as const };
       }
 
       // Zero-429 Fallback Step A: Serve from Persistent Neon DB Image Pool (Primary)
@@ -408,7 +538,7 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
       ) {
         const secondary = this.registry.get(this.secondaryProviderName);
         if (secondary) {
-          const secItems = await this.fetchFromFallbackProvider({
+          const secItems = await this.fetchProviderPage({
             provider: secondary,
             page,
             needed: UNSPLASH_MAX_PER_PAGE - merged.length,
@@ -434,7 +564,7 @@ export class UnsplashQuotaWorker implements IImageFeedOrchestrator {
       ) {
         const tertiary = this.registry.get(this.tertiaryProviderName);
         if (tertiary) {
-          const tertItems = await this.fetchFromFallbackProvider({
+          const tertItems = await this.fetchProviderPage({
             provider: tertiary,
             page,
             needed: UNSPLASH_MAX_PER_PAGE - merged.length,

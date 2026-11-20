@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import type { Metadata } from "next";
 import { CommunityPostsFeed } from "@/components/posts/community-feed";
 import { getContainer } from "@/infrastructure/container";
@@ -33,15 +34,18 @@ export const metadata: Metadata = {
 
 export default async function CommunityPage() {
   const viewer = await getOptionalSessionUser();
+  const seed = randomInt(0x1_0000_0000);
   const initial = await getContainer().useCases.listPublicPosts.execute({
     page: 1,
     limit: 18,
+    seed,
     viewerUserId: viewer?.id ?? null,
   });
 
   return (
     <section>
       <CommunityPostsFeed
+        seed={seed}
         initialPosts={initial.items}
         initialHasMore={initial.hasMore}
       />

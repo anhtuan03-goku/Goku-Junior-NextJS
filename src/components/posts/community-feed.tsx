@@ -11,9 +11,11 @@ import type { PostViewItem } from "@/domain/entities/models";
 import { cn, formatMinimalDate } from "@/lib/utils";
 
 export function CommunityPostsFeed({
+  seed,
   initialPosts,
   initialHasMore,
 }: {
+  seed: number;
   initialPosts: PostViewItem[];
   initialHasMore: boolean;
 }) {
@@ -21,18 +23,26 @@ export function CommunityPostsFeed({
   const { user, showPhotographerInfo, t, tr } = useAppSession();
 
   const [posts, setPosts] = useState<PostViewItem[]>(initialPosts);
-  const [page, setPage] = useState(1);
+  const [feedSeed] = useState(seed);
+  const [after, setAfter] = useState(() => initialPosts.at(-1)?.id);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [loading, setLoading] = useState(false);
   const [likingIds, setLikingIds] = useState<Set<string>>(new Set());
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const requestRef = useRef<AbortController | null>(null);
 
-  const loadMore = useCallback(async (nextPage: number) => {
+  const loadMore = useCallback(async () => {
+    if (!after || requestRef.current) return;
+
+    const request = new AbortController();
+    requestRef.current = request;
     setLoading(true);
     try {
-      const res = await fetch(`/api/posts?page=${nextPage}&limit=18`, {
+      const params = new URLSearchParams({ seed: String(feedSeed), after, limit: "18" });
+      const res = await fetch(`/api/posts?${params}`, {
         cache: "no-store",
+        signal: request.signal,
       });
       if (!res.ok) {
         setHasMore(false);
@@ -42,16 +52,29 @@ export function CommunityPostsFeed({
         items: PostViewItem[];
         hasMore: boolean;
       };
+      if (request.signal.aborted) return;
+
       setPosts((prev) => {
         const existingIds = new Set(prev.map((p) => p.id));
         const uniqueNew = data.items.filter((p) => !existingIds.has(p.id));
         return [...prev, ...uniqueNew];
       });
-      setPage(nextPage);
-      setHasMore(data.hasMore);
+      const next = data.items.at(-1)?.id;
+      setAfter(next);
+      setHasMore(data.hasMore && next !== undefined);
+    } catch {
+      if (!request.signal.aborted) setHasMore(false);
     } finally {
-      setLoading(false);
+      if (requestRef.current === request) {
+        requestRef.current = null;
+        setLoading(false);
+      }
     }
+  }, [after, feedSeed]);
+
+  useEffect(() => () => {
+    requestRef.current?.abort();
+    requestRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -61,7 +84,7 @@ export function CommunityPostsFeed({
     const obs = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting && !loading && hasMore) {
-          void loadMore(page + 1);
+          void loadMore();
         }
       },
       { rootMargin: "500px" },
@@ -69,7 +92,7 @@ export function CommunityPostsFeed({
 
     obs.observe(el);
     return () => obs.disconnect();
-  }, [hasMore, loadMore, loading, page]);
+  }, [hasMore, loadMore, loading]);
 
   async function handleToggleLike(postId: string) {
     if (!user) {

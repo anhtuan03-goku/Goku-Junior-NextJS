@@ -3,9 +3,9 @@ import { ZeroPiiPolicyContent } from "@/components/privacy/privacy-content";
 import { SITE_CONFIG } from "@/lib/site-config";
 
 // Static policy content (zero DB queries required)
-const PRIVACY_TITLE = "Zero-PII Privacy Policy";
+const PRIVACY_TITLE = "Privacy Policy";
 const PRIVACY_DESC =
-  "How naut.frame protects your identity with strict Zero-PII authentication, one-way cryptographic hashing, anonymous appreciation, and single-slot media storage.";
+  "Learn what naut.frame asks for when you sign up and how you can control who sees your posts.";
 
 export const metadata: Metadata = {
   title: PRIVACY_TITLE,

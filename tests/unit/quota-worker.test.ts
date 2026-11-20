@@ -150,7 +150,122 @@ function makeFakeBatch(count: number, provider = "unsplash"): ExternalImageItem[
   }));
 }
 
+function makeDiverseBatch(count: number, provider: string): ExternalImageItem[] {
+  return makeFakeBatch(count, provider).map((item, index) => ({
+    ...item,
+    photographer: {
+      ...item.photographer!,
+      username: `${provider}-author-${index}`,
+      name: `${provider} Author ${index}`,
+    },
+  }));
+}
+
 describe("UnsplashQuotaWorker (50 req/hr, 30 photos/req, Zero-429)", () => {
+  it("rotates Explore through all enabled providers while Unsplash can serve photos", async () => {
+    const store = new InMemoryQuotaStore();
+    const primary: IImageProvider = {
+      providerName: "unsplash",
+      fetchPage: vi.fn(),
+      fetchRandomBatch: vi.fn(async () => ({ items: makeDiverseBatch(30, "unsplash") })),
+    };
+    const pixabay: IImageProvider = {
+      providerName: "pixabay",
+      fetchPage: vi.fn(async () => ({ items: makeDiverseBatch(30, "pixabay") })),
+    };
+    const picsum: IImageProvider = {
+      providerName: "picsum",
+      fetchPage: vi.fn(async () => ({ items: makeDiverseBatch(30, "picsum") })),
+    };
+    const registry = new ImageProviderRegistry().register(primary).register(pixabay).register(picsum);
+    const worker = new UnsplashQuotaWorker(primary, registry, store, noopSavedRepo);
+
+    const selectedProviders = new Set<string>();
+    for (const page of [1, 2, 3]) {
+      const feed = await worker.getInfiniteFeed({ page, seed: 0 });
+      expect(feed.items).toHaveLength(30);
+      const batchProviders = new Set(feed.items.map((item) => item.provider));
+      expect(batchProviders.size).toBe(1);
+      for (const provider of batchProviders) selectedProviders.add(provider);
+    }
+    expect(selectedProviders).toEqual(new Set(["unsplash", "pixabay", "picsum"]));
+    expect(primary.fetchRandomBatch).toHaveBeenCalledOnce();
+    expect(primary.fetchRandomBatch).toHaveBeenCalledWith(30);
+    expect(primary.fetchPage).not.toHaveBeenCalled();
+    expect(pixabay.fetchPage).toHaveBeenCalledWith(expect.objectContaining({ perPage: 100 }));
+    expect(picsum.fetchPage).toHaveBeenCalledWith(expect.objectContaining({ perPage: 100 }));
+  });
+
+  it("samples one photo per photographer across providers, even when a provider has a full batch from one author", async () => {
+    const store = new InMemoryQuotaStore();
+    const primary: IImageProvider = {
+      providerName: "unsplash",
+      fetchPage: vi.fn(),
+      fetchRandomBatch: vi.fn(async () => ({ items: makeFakeBatch(30) })),
+    };
+    const pixabay: IImageProvider = {
+      providerName: "pixabay",
+      fetchPage: vi.fn(async () => ({
+        items: [
+          ...makeFakeBatch(5, "pixabay").map((item) => ({
+            ...item,
+            photographer: { ...item.photographer!, name: " HARUTO MINIMAL " },
+          })),
+          ...makeDiverseBatch(15, "pixabay").map((item) => ({
+            ...item,
+            externalId: `diverse_${item.externalId}`,
+          })),
+        ],
+      })),
+    };
+    const picsum: IImageProvider = {
+      providerName: "picsum",
+      fetchPage: vi.fn(async () => ({ items: makeDiverseBatch(10, "picsum") })),
+    };
+    const registry = new ImageProviderRegistry().register(primary).register(pixabay).register(picsum);
+    const worker = new UnsplashQuotaWorker(primary, registry, store, noopSavedRepo);
+
+    const feed = await worker.getInfiniteFeed({ page: 1, seed: 0 });
+    const names = feed.items.map((item) => item.photographer?.name.trim().toLowerCase());
+
+    expect(feed.items).toHaveLength(26);
+    expect(new Set(names).size).toBe(26);
+    expect(names.filter((name) => name === "haruto minimal")).toHaveLength(1);
+    expect(feed.hasMore).toBe(true);
+  });
+
+  it("uses another provider when Explore reaches Unsplash’s reserve even with a full Unsplash pool", async () => {
+    const store = new InMemoryQuotaStore();
+    store.images = makeFakeBatch(30);
+    await store.saveRateState({
+      provider: "unsplash",
+      remainingQuota: 8,
+      limitQuota: 50,
+      windowResetAt: new Date(Date.now() + 60_000),
+    });
+    const primary: IImageProvider = {
+      providerName: "unsplash",
+      fetchPage: vi.fn(),
+      fetchRandomBatch: vi.fn(),
+    };
+    const pixabay: IImageProvider = {
+      providerName: "pixabay",
+      fetchPage: vi.fn(async () => ({ items: [] })),
+    };
+    const picsum: IImageProvider = {
+      providerName: "picsum",
+      fetchPage: vi.fn(async () => ({ items: makeDiverseBatch(30, "picsum") })),
+    };
+    const registry = new ImageProviderRegistry().register(primary).register(pixabay).register(picsum);
+    const worker = new UnsplashQuotaWorker(primary, registry, store, noopSavedRepo);
+
+    const feed = await worker.getInfiniteFeed({ page: 1, seed: 0 });
+
+    expect(primary.fetchRandomBatch).not.toHaveBeenCalled();
+    expect(feed.items).toHaveLength(30);
+    expect(new Set(feed.items.map((item) => item.provider))).toEqual(new Set(["picsum"]));
+  });
+
   it("coalesces 15 concurrent requests into 1 single upstream call with perPage=30 and hydrates photographers", async () => {
     const fetchPageSpy = vi.fn(async (params: { perPage: number }) => {
       await new Promise((r) => setTimeout(r, 25));

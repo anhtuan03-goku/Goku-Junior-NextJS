@@ -20,6 +20,7 @@ interface PicsumCacheEntry {
 }
 
 export const PICSUM_DEFAULT_CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes L1 resilience cache
+export const PICSUM_MAX_PER_PAGE = 100;
 const MAX_PICSUM_CACHE_ENTRIES = 200;
 
 function sanitizeHttpsUrl(rawUrl: string | undefined | null): string | null {
@@ -68,7 +69,7 @@ export class PicsumRandomProvider implements IImageProvider {
     perPage: number;
     query?: string;
   }): Promise<ProviderFetchResult> {
-    const limit = Math.min(Math.max(Math.floor(params.perPage || 20), 1), 30);
+    const limit = Math.min(Math.max(Math.floor(params.perPage || 20), 1), PICSUM_MAX_PER_PAGE);
     const page = Math.max(1, Math.floor(params.page || 1));
     const cleanQuery = params.query?.trim().slice(0, 100) || undefined;
     const cacheKey = `${page}:${limit}:${(cleanQuery ?? "").toLowerCase()}`;
@@ -93,6 +94,7 @@ export class PicsumRandomProvider implements IImageProvider {
         response = await this.fetchImpl(u.toString(), {
           method: "GET",
           cache: "no-store",
+          signal: AbortSignal.timeout(5_000),
         });
       } catch {
         return { items: [] };

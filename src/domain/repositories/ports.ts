@@ -81,6 +81,8 @@ export interface IPostRepository {
   listPublicFeed(params: {
     page: number;
     limit: number;
+    seed?: number;
+    after?: string;
     viewerUserId?: string | null;
   }): Promise<{ items: PostViewItem[]; hasMore: boolean }>;
   toggleLike(params: {
@@ -104,6 +106,7 @@ export interface IImageProvider {
     perPage: number;
     query?: string;
   }): Promise<ProviderFetchResult>;
+  fetchRandomBatch?(perPage: number): Promise<ProviderFetchResult>;
   fetchPhotographer?(username: string): Promise<{
     photographer: PhotographerSummary;
     rateLimitRemaining?: number;
@@ -155,6 +158,7 @@ export interface IImageFeedOrchestrator {
     page: number;
     query?: string;
     provider?: string;
+    seed?: number;
     viewerUserId?: string | null;
   }): Promise<FeedResponseDTO>;
   getPhotographerDetail(params: {

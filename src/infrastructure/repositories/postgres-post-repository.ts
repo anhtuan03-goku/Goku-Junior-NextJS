@@ -158,9 +158,18 @@ export class PostgresPostRepository implements IPostRepository {
   async listPublicFeed(params: {
     page: number;
     limit: number;
+    seed?: number;
+    after?: string;
     viewerUserId?: string | null;
   }): Promise<{ items: PostViewItem[]; hasMore: boolean }> {
-    const offset = Math.max(0, (params.page - 1) * params.limit);
+    const seed = params.seed === undefined ? undefined : String(params.seed);
+    const rank = seed === undefined ? undefined : sql`md5(${posts.id}::text || ':' || ${seed})`;
+    // Derive the cursor's rank from its id so paging also works after that post is removed.
+    const after =
+      rank && params.after
+        ? sql`(${rank}, ${posts.id}) > (md5((${params.after}::uuid)::text || ':' || ${seed}), ${params.after}::uuid)`
+        : undefined;
+    const offset = after ? 0 : Math.max(0, (params.page - 1) * params.limit);
     const rows = await db
       .select({
         post: posts,
@@ -172,8 +181,8 @@ export class PostgresPostRepository implements IPostRepository {
       .from(posts)
       .innerJoin(users, eq(posts.authorId, users.id))
       .innerJoin(savedImages, eq(posts.savedImageId, savedImages.id))
-      .where(and(eq(posts.visibility, "PUBLIC"), eq(users.isActive, true)))
-      .orderBy(desc(posts.createdAt), desc(posts.id))
+      .where(and(eq(posts.visibility, "PUBLIC"), eq(users.isActive, true), after))
+      .orderBy(rank ?? desc(posts.createdAt), rank ? posts.id : desc(posts.id))
       .limit(params.limit + 1)
       .offset(offset);
 

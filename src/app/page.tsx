@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import type { Metadata } from "next";
 import { InfiniteExploreFeed } from "@/components/images/infinite-explore-feed";
 import { getContainer } from "@/infrastructure/container";
@@ -29,8 +30,10 @@ export const metadata: Metadata = {
 
 export default async function HomePage() {
   const viewer = await getOptionalSessionUser();
+  const seed = randomInt(0x1_0000_0000);
   const initialFeed = await getContainer().useCases.browseInfiniteImages.execute({
     page: 1,
+    seed,
     viewerUserId: viewer?.id ?? null,
   });
 
@@ -41,6 +44,7 @@ export default async function HomePage() {
       </h1>
 
       <InfiniteExploreFeed
+        seed={seed}
         initialItems={initialFeed.items}
         initialHasMore={initialFeed.hasMore}
       />
